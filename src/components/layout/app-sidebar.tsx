@@ -41,7 +41,7 @@ const workspaceItems: NavItem[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, soon: true },
   { title: "Clientes", url: "/clientes", icon: Users },
   { title: "Agenda", url: "/agenda", icon: Calendar, soon: true },
-  { title: "Kanban", url: "/kanban", icon: KanbanSquare, soon: true },
+  { title: "Kanban", url: "/kanban", icon: KanbanSquare },
   { title: "Timeline", url: "/timeline", icon: Clock, soon: true },
 ];
 

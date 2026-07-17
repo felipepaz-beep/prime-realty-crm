@@ -18,6 +18,7 @@ import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedClientesClienteIdRouteImport } from './routes/_authenticated/clientes.$clienteId'
+import { Route as AuthenticatedKanbanRouteImport } from './routes/_authenticated/kanban'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -65,6 +66,12 @@ const AuthenticatedClientesClienteIdRoute =
     getParentRoute: () => AuthenticatedClientesRoute,
   } as any)
 
+const AuthenticatedKanbanRoute = AuthenticatedKanbanRouteImport.update({
+  id: '/kanban',
+  path: '/kanban',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
@@ -72,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/clientes': typeof AuthenticatedClientesRouteWithChildren
   '/inicio': typeof AuthenticatedInicioRoute
+  '/kanban': typeof AuthenticatedKanbanRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/clientes/$clienteId': typeof AuthenticatedClientesClienteIdRoute
 }
@@ -82,6 +90,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/clientes': typeof AuthenticatedClientesRouteWithChildren
   '/inicio': typeof AuthenticatedInicioRoute
+  '/kanban': typeof AuthenticatedKanbanRoute
   '/perfil': typeof AuthenticatedPerfilRoute
   '/clientes/$clienteId': typeof AuthenticatedClientesClienteIdRoute
 }
@@ -94,6 +103,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_authenticated/clientes': typeof AuthenticatedClientesRouteWithChildren
   '/_authenticated/inicio': typeof AuthenticatedInicioRoute
+  '/_authenticated/kanban': typeof AuthenticatedKanbanRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
   '/_authenticated/clientes/$clienteId': typeof AuthenticatedClientesClienteIdRoute
 }
@@ -106,6 +116,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/clientes'
     | '/inicio'
+    | '/kanban'
     | '/perfil'
     | '/clientes/$clienteId'
   fileRoutesByTo: FileRoutesByTo
@@ -116,6 +127,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/clientes'
     | '/inicio'
+    | '/kanban'
     | '/perfil'
     | '/clientes/$clienteId'
   id:
@@ -127,6 +139,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/_authenticated/clientes'
     | '/_authenticated/inicio'
+    | '/_authenticated/kanban'
     | '/_authenticated/perfil'
     | '/_authenticated/clientes/$clienteId'
   fileRoutesById: FileRoutesById
@@ -204,6 +217,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedClientesClienteIdRouteImport
       parentRoute: typeof AuthenticatedClientesRoute
     }
+    '/_authenticated/kanban': {
+      id: '/_authenticated/kanban'
+      path: '/kanban'
+      fullPath: '/kanban'
+      preLoaderRoute: typeof AuthenticatedKanbanRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -223,12 +243,14 @@ const AuthenticatedClientesRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRouteWithChildren
   AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
+  AuthenticatedKanbanRoute: typeof AuthenticatedKanbanRoute
   AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedClientesRoute: AuthenticatedClientesRouteWithChildren,
   AuthenticatedInicioRoute: AuthenticatedInicioRoute,
+  AuthenticatedKanbanRoute: AuthenticatedKanbanRoute,
   AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
 }
 
