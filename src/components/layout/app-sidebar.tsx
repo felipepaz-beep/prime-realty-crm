@@ -12,6 +12,7 @@ import {
   Search,
   Settings,
   Home,
+  User,
 } from "lucide-react";
 
 import {
@@ -36,7 +37,7 @@ type NavItem = {
 };
 
 const workspaceItems: NavItem[] = [
-  { title: "Início", url: "/", icon: Home },
+  { title: "Início", url: "/inicio", icon: Home },
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, soon: true },
   { title: "Clientes", url: "/clientes", icon: Users, soon: true },
   { title: "Agenda", url: "/agenda", icon: Calendar, soon: true },
@@ -97,7 +98,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r">
       <SidebarHeader className="border-b h-14 flex items-center px-3">
-        <Link to="/" className="flex items-center gap-2 font-semibold">
+        <Link to="/inicio" className="flex items-center gap-2 font-semibold">
           <div className="h-7 w-7 rounded-md bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-primary-foreground text-xs font-bold">
             C
           </div>
@@ -128,6 +129,14 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t">
         <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip="Meu perfil">
+              <Link to="/perfil" className="flex items-center gap-2">
+                <User className="h-4 w-4" />
+                {!collapsed && <span>Meu perfil</span>}
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton disabled tooltip="Configurações" className="opacity-60">
               <Settings className="h-4 w-4" />
