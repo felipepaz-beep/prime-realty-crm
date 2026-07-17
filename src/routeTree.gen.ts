@@ -15,10 +15,10 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
+import { Route as AuthenticatedKanbanRouteImport } from './routes/_authenticated/kanban'
 import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedClientesClienteIdRouteImport } from './routes/_authenticated/clientes.$clienteId'
-import { Route as AuthenticatedKanbanRouteImport } from './routes/_authenticated/kanban'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -49,6 +49,11 @@ const AuthenticatedPerfilRoute = AuthenticatedPerfilRouteImport.update({
   path: '/perfil',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedKanbanRoute = AuthenticatedKanbanRouteImport.update({
+  id: '/kanban',
+  path: '/kanban',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedInicioRoute = AuthenticatedInicioRouteImport.update({
   id: '/inicio',
   path: '/inicio',
@@ -65,12 +70,6 @@ const AuthenticatedClientesClienteIdRoute =
     path: '/$clienteId',
     getParentRoute: () => AuthenticatedClientesRoute,
   } as any)
-
-const AuthenticatedKanbanRoute = AuthenticatedKanbanRouteImport.update({
-  id: '/kanban',
-  path: '/kanban',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -196,6 +195,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPerfilRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/kanban': {
+      id: '/_authenticated/kanban'
+      path: '/kanban'
+      fullPath: '/kanban'
+      preLoaderRoute: typeof AuthenticatedKanbanRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/inicio': {
       id: '/_authenticated/inicio'
       path: '/inicio'
@@ -216,13 +222,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/clientes/$clienteId'
       preLoaderRoute: typeof AuthenticatedClientesClienteIdRouteImport
       parentRoute: typeof AuthenticatedClientesRoute
-    }
-    '/_authenticated/kanban': {
-      id: '/_authenticated/kanban'
-      path: '/kanban'
-      fullPath: '/kanban'
-      preLoaderRoute: typeof AuthenticatedKanbanRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
     }
   }
 }
