@@ -38,7 +38,7 @@ export async function criarCliente(payload: ClienteInsert): Promise<Cliente> {
 }
 
 export async function atualizarCliente(id: string, payload: ClienteUpdate): Promise<Cliente> {
-  const { data, error } = await supabase.from(TABLE).update(payload).eq('id', id).select('*').single();
+  const { data, error } = await supabase.from(TABLE).update(payload as never).eq('id', id).select('*').single();
   if (error) throw error;
   return data as Cliente;
 }
