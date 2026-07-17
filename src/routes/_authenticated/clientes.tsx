@@ -33,6 +33,7 @@ function ClientesPage() {
   const { data, isLoading, isError } = useClientes(filtros);
   const criarCliente = useCriarCliente();
   const removerCliente = useRemoverCliente();
+  const navigate = useNavigate();
 
   const handleBusca = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value;
