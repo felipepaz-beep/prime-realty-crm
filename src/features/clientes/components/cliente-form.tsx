@@ -21,7 +21,7 @@ interface ClienteFormProps {
 
 export function ClienteForm({ defaultValues, onSubmit, onCancel, isLoading }: ClienteFormProps) {
   const form = useForm<ClienteFormValues>({
-    resolver: zodResolver(clienteFormSchema),
+    resolver: zodResolver(clienteFormSchema) as never,
     defaultValues: {
       nome: defaultValues?.nome ?? '',
       telefone: defaultValues?.telefone ?? '',

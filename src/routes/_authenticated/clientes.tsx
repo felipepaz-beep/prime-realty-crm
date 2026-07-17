@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState, useCallback } from 'react';
 import { UserPlus, Search, Users } from 'lucide-react';
 import { toast } from 'sonner';
@@ -33,6 +33,7 @@ function ClientesPage() {
   const { data, isLoading, isError } = useClientes(filtros);
   const criarCliente = useCriarCliente();
   const removerCliente = useRemoverCliente();
+  const navigate = useNavigate();
 
   const handleBusca = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value;
@@ -126,7 +127,7 @@ function ClientesPage() {
             </TableHeader>
             <TableBody>
               {clientes.map((c) => (
-                <TableRow key={c.id} className="cursor-pointer hover:bg-muted/40">
+                <TableRow key={c.id} className="cursor-pointer hover:bg-muted/40" onClick={() => navigate({ to: '/clientes/$clienteId', params: { clienteId: c.id } })}>
                   <TableCell className="font-medium">{c.nome}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {c.whatsapp || c.telefone || c.email || '—'}
@@ -140,7 +141,7 @@ function ClientesPage() {
                       size="sm"
                       variant="ghost"
                       className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2 text-xs"
-                      onClick={() => handleRemover(c.id, c.nome)}
+                      onClick={(e) => { e.stopPropagation(); handleRemover(c.id, c.nome); }}
                     >
                       Remover
                     </Button>
