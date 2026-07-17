@@ -193,7 +193,9 @@ function SignUpForm({ onSuccess }: { onSuccess: () => void }) {
       toast.error(translateAuthError(error));
       return;
     }
-    toast.success("Conta criada! Você já pode entrar.");
+    toast.success(
+      "Conta criada! Se pedirmos confirmação de e-mail, verifique sua caixa de entrada.",
+    );
     reset();
     onSuccess();
   };
