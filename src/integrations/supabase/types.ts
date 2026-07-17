@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      client_timeline: {
+        Row: {
+          id: string
+          client_id: string
+          owner_id: string
+          event_type: string
+          title: string
+          description: string | null
+          metadata: Json
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          client_id: string
+          owner_id: string
+          event_type: string
+          title: string
+          description?: string | null
+          metadata?: Json
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          client_id?: string
+          owner_id?: string
+          event_type?: string
+          title?: string
+          description?: string | null
+          metadata?: Json
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           bairros_interesse: Json

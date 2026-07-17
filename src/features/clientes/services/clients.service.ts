@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { TimelineService } from './timeline.service';
 import type { Cliente, ClienteFiltros, ClienteInsert, ClienteUpdate, ClientesPaginados } from '../types';
 
 const TABLE = 'clients';
@@ -34,7 +35,10 @@ export async function criarCliente(payload: ClienteInsert): Promise<Cliente> {
   if (!ownerId) throw new Error('Usuário não autenticado.');
   const { data, error } = await supabase.from(TABLE).insert({ ...payload, owner_id: ownerId } as never).select('*').single();
   if (error) throw error;
-  return data as Cliente;
+  const cliente = data as Cliente;
+  // Evento automático de criação (fire-and-forget)
+  TimelineService.clienteCriado(cliente.id, cliente.nome);
+  return cliente;
 }
 
 export async function atualizarCliente(id: string, payload: ClienteUpdate): Promise<Cliente> {

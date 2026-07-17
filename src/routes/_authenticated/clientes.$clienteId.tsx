@@ -7,11 +7,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { useClienteDetalhe, useAtualizarCliente, useRemoverCliente } from '@/features/clientes/hooks/use-clientes';
 import { ClienteForm } from '@/features/clientes/components/cliente-form';
+import { ClienteTimeline } from '@/features/clientes/components/cliente-timeline';
 import { StatusBadge, EtapaFunilBadge, PrioridadeBadge, TemperaturaBadge } from '@/features/clientes/components/cliente-badge';
+import { TimelineService } from '@/features/clientes/services/timeline.service';
 import type { ClienteFormValues } from '@/features/clientes/schemas';
+import type { Cliente } from '@/features/clientes/types';
 
 export const Route = createFileRoute('/_authenticated/clientes/$clienteId')({
   head: () => ({
@@ -48,6 +52,21 @@ export const Route = createFileRoute('/_authenticated/clientes/$clienteId')({
   ),
 });
 
+// Detecta quais campos mudaram entre dois snapshots do cliente
+function detectarCamposAlterados(anterior: Cliente, novo: ClienteFormValues): string[] {
+  const CAMPOS_MONITORADOS = [
+    'nome', 'telefone', 'whatsapp', 'email', 'cidade', 'estado',
+    'etapa_funil', 'status', 'prioridade', 'temperatura', 'score',
+    'observacoes', 'origem_lead', 'proximo_followup',
+  ] as const;
+
+  return CAMPOS_MONITORADOS.filter((campo) => {
+    const valorAnterior = anterior[campo as keyof Cliente];
+    const valorNovo = novo[campo as keyof ClienteFormValues];
+    return String(valorAnterior ?? '') !== String(valorNovo ?? '');
+  });
+}
+
 function ClienteDetalhePage() {
   const { clienteId } = Route.useParams();
   const navigate = useNavigate();
@@ -57,9 +76,27 @@ function ClienteDetalhePage() {
   const [editando, setEditando] = useState(false);
 
   const handleAtualizar = async (values: ClienteFormValues) => {
+    // Detecta campos alterados antes de salvar
+    const camposAlterados = detectarCamposAlterados(cliente, values);
+    const etapaAnterior = cliente.etapa_funil;
+
     await atualizar.mutateAsync(values);
     toast.success('Cliente atualizado com sucesso!');
     setEditando(false);
+
+    // Registra evento(s) na timeline (fire-and-forget)
+    if (camposAlterados.length > 0) {
+      // Evento específico para mudança de etapa do funil
+      if (camposAlterados.includes('etapa_funil') && values.etapa_funil !== etapaAnterior) {
+        TimelineService.etapaAlterada(clienteId, etapaAnterior, values.etapa_funil);
+      }
+
+      // Evento geral de atualização
+      const outrosCampos = camposAlterados.filter((c) => c !== 'etapa_funil');
+      if (outrosCampos.length > 0) {
+        TimelineService.clienteAtualizado(clienteId, outrosCampos);
+      }
+    }
   };
 
   const handleRemover = async () => {
@@ -70,8 +107,9 @@ function ClienteDetalhePage() {
   };
 
   return (
-    <div className="flex flex-col">
-      <div className="flex items-center justify-between border-b px-6 py-4">
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b px-6 py-4 shrink-0">
         <div className="flex items-center gap-3">
           <Button asChild size="icon" variant="ghost" className="h-8 w-8">
             <Link to="/clientes"><ArrowLeft className="h-4 w-4" /></Link>
@@ -93,61 +131,92 @@ function ClienteDetalhePage() {
         </div>
       </div>
 
-      <div className="grid gap-4 p-6 md:grid-cols-3">
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-sm">Contato</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <InfoRow icon={<Phone className="h-4 w-4" />} label="Telefone" value={cliente.telefone} />
-            <InfoRow icon={<MessageCircle className="h-4 w-4" />} label="WhatsApp" value={cliente.whatsapp} />
-            <InfoRow icon={<Mail className="h-4 w-4" />} label="E-mail" value={cliente.email} />
-            <InfoRow
-              icon={<MapPin className="h-4 w-4" />}
-              label="Localização"
-              value={[cliente.cidade, cliente.estado].filter(Boolean).join(' / ') || null}
-            />
-            {cliente.origem_lead && (
-              <>
+      {/* Tabs */}
+      <Tabs defaultValue="visao-geral" className="flex-1 flex flex-col overflow-hidden">
+        <div className="border-b px-6 shrink-0">
+          <TabsList className="h-10 bg-transparent p-0 gap-0">
+            <TabsTrigger
+              value="visao-geral"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-10 px-4 text-sm"
+            >
+              Visão geral
+            </TabsTrigger>
+            <TabsTrigger
+              value="timeline"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-10 px-4 text-sm"
+            >
+              Histórico
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
+        {/* Tab: Visão geral */}
+        <TabsContent value="visao-geral" className="flex-1 overflow-auto mt-0">
+          <div className="grid gap-4 p-6 md:grid-cols-3">
+            <Card className="md:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-sm">Contato</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <InfoRow icon={<Phone className="h-4 w-4" />} label="Telefone" value={cliente.telefone} />
+                <InfoRow icon={<MessageCircle className="h-4 w-4" />} label="WhatsApp" value={cliente.whatsapp} />
+                <InfoRow icon={<Mail className="h-4 w-4" />} label="E-mail" value={cliente.email} />
+                <InfoRow
+                  icon={<MapPin className="h-4 w-4" />}
+                  label="Localização"
+                  value={[cliente.cidade, cliente.estado].filter(Boolean).join(' / ') || null}
+                />
+                {cliente.origem_lead && (
+                  <>
+                    <Separator />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Origem do lead</p>
+                      <p>{cliente.origem_lead}</p>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Pipeline</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <BadgeRow label="Etapa"><EtapaFunilBadge value={cliente.etapa_funil} /></BadgeRow>
+                <BadgeRow label="Status"><StatusBadge value={cliente.status} /></BadgeRow>
+                <BadgeRow label="Prioridade"><PrioridadeBadge value={cliente.prioridade} /></BadgeRow>
+                <BadgeRow label="Temperatura"><TemperaturaBadge value={cliente.temperatura} /></BadgeRow>
                 <Separator />
-                <div>
-                  <p className="text-xs text-muted-foreground">Origem do lead</p>
-                  <p>{cliente.origem_lead}</p>
+                <div className="text-sm">
+                  <p className="text-xs text-muted-foreground">Score</p>
+                  <p className="font-medium">{cliente.score} / 100</p>
                 </div>
-              </>
+              </CardContent>
+            </Card>
+
+            {cliente.observacoes && (
+              <Card className="md:col-span-3">
+                <CardHeader>
+                  <CardTitle className="text-sm">Observações</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="whitespace-pre-wrap text-sm text-muted-foreground">{cliente.observacoes}</p>
+                </CardContent>
+              </Card>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </TabsContent>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Pipeline</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <BadgeRow label="Etapa"><EtapaFunilBadge value={cliente.etapa_funil} /></BadgeRow>
-            <BadgeRow label="Status"><StatusBadge value={cliente.status} /></BadgeRow>
-            <BadgeRow label="Prioridade"><PrioridadeBadge value={cliente.prioridade} /></BadgeRow>
-            <BadgeRow label="Temperatura"><TemperaturaBadge value={cliente.temperatura} /></BadgeRow>
-            <Separator />
-            <div className="text-sm">
-              <p className="text-xs text-muted-foreground">Score</p>
-              <p className="font-medium">{cliente.score} / 100</p>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Tab: Timeline */}
+        <TabsContent value="timeline" className="flex-1 overflow-auto mt-0">
+          <div className="p-6 max-w-2xl">
+            <ClienteTimeline clienteId={clienteId} />
+          </div>
+        </TabsContent>
+      </Tabs>
 
-        {cliente.observacoes && (
-          <Card className="md:col-span-3">
-            <CardHeader>
-              <CardTitle className="text-sm">Observações</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="whitespace-pre-wrap text-sm text-muted-foreground">{cliente.observacoes}</p>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
+      {/* Modal de edição */}
       <Dialog open={editando} onOpenChange={setEditando}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>

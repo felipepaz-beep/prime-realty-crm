@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import { supabase } from '@/integrations/supabase/client';
+import { TimelineService } from '../services/timeline.service';
 import { ETAPA_FUNIL_ORDEM } from '../constants';
 import type { Cliente, ClienteEtapaFunil } from '../types';
 import { clientesKeys } from './use-clientes';
@@ -64,6 +65,9 @@ export function useKanban(clientesOriginais: Cliente[]) {
         toast.error('Erro ao mover cliente. Tente novamente.');
         return;
       }
+
+      // Evento automático de mudança de etapa (fire-and-forget)
+      TimelineService.etapaAlterada(clienteId, clienteAtual.etapa_funil, novaEtapa);
 
       // Invalida cache do React Query para manter listagem consistente
       qc.invalidateQueries({ queryKey: clientesKeys.lists() });
