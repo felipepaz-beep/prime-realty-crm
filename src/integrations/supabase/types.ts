@@ -14,6 +14,123 @@ export type Database = {
   }
   public: {
     Tables: {
+      clients: {
+        Row: {
+          bairros_interesse: Json
+          cidade: string | null
+          cidades_interesse: Json
+          codigo_imovel: string | null
+          cpf: string | null
+          created_at: string
+          custom_fields: Json
+          data_nascimento: string | null
+          deleted_at: string | null
+          email: string | null
+          estado: string | null
+          etapa_funil: string
+          faixa_valor_max: number | null
+          faixa_valor_min: number | null
+          finalidade: string | null
+          forma_pagamento: string | null
+          id: string
+          is_active: boolean
+          nome: string
+          observacoes: string | null
+          origem_lead: string | null
+          owner_id: string
+          previsao_fechamento: string | null
+          prioridade: string
+          proximo_followup: string | null
+          score: number
+          status: string
+          tags: Json
+          telefone: string | null
+          temperatura: string
+          tipo_imovel: string | null
+          ultima_visita: string | null
+          ultimo_contato: string | null
+          updated_at: string
+          valor_negociado: number | null
+          whatsapp: string | null
+        }
+        Insert: {
+          bairros_interesse?: Json
+          cidade?: string | null
+          cidades_interesse?: Json
+          codigo_imovel?: string | null
+          cpf?: string | null
+          created_at?: string
+          custom_fields?: Json
+          data_nascimento?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          estado?: string | null
+          etapa_funil?: string
+          faixa_valor_max?: number | null
+          faixa_valor_min?: number | null
+          finalidade?: string | null
+          forma_pagamento?: string | null
+          id?: string
+          is_active?: boolean
+          nome: string
+          observacoes?: string | null
+          origem_lead?: string | null
+          owner_id: string
+          previsao_fechamento?: string | null
+          prioridade?: string
+          proximo_followup?: string | null
+          score?: number
+          status?: string
+          tags?: Json
+          telefone?: string | null
+          temperatura?: string
+          tipo_imovel?: string | null
+          ultima_visita?: string | null
+          ultimo_contato?: string | null
+          updated_at?: string
+          valor_negociado?: number | null
+          whatsapp?: string | null
+        }
+        Update: {
+          bairros_interesse?: Json
+          cidade?: string | null
+          cidades_interesse?: Json
+          codigo_imovel?: string | null
+          cpf?: string | null
+          created_at?: string
+          custom_fields?: Json
+          data_nascimento?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          estado?: string | null
+          etapa_funil?: string
+          faixa_valor_max?: number | null
+          faixa_valor_min?: number | null
+          finalidade?: string | null
+          forma_pagamento?: string | null
+          id?: string
+          is_active?: boolean
+          nome?: string
+          observacoes?: string | null
+          origem_lead?: string | null
+          owner_id?: string
+          previsao_fechamento?: string | null
+          prioridade?: string
+          proximo_followup?: string | null
+          score?: number
+          status?: string
+          tags?: Json
+          telefone?: string | null
+          temperatura?: string
+          tipo_imovel?: string | null
+          ultima_visita?: string | null
+          ultimo_contato?: string | null
+          updated_at?: string
+          valor_negociado?: number | null
+          whatsapp?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
