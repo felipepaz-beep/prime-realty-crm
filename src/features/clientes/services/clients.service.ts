@@ -32,7 +32,7 @@ export async function criarCliente(payload: ClienteInsert): Promise<Cliente> {
   const { data: sessionData } = await supabase.auth.getUser();
   const ownerId = sessionData.user?.id;
   if (!ownerId) throw new Error('Usuário não autenticado.');
-  const { data, error } = await supabase.from(TABLE).insert({ ...payload, owner_id: ownerId }).select('*').single();
+  const { data, error } = await supabase.from(TABLE).insert({ ...payload, owner_id: ownerId } as never).select('*').single();
   if (error) throw error;
   return data as Cliente;
 }
