@@ -127,7 +127,7 @@ function ClientesPage() {
             </TableHeader>
             <TableBody>
               {clientes.map((c) => (
-                <TableRow key={c.id} className="cursor-pointer hover:bg-muted/40">
+                <TableRow key={c.id} className="cursor-pointer hover:bg-muted/40" onClick={() => navigate({ to: '/clientes/$clienteId', params: { clienteId: c.id } })}>
                   <TableCell className="font-medium">{c.nome}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {c.whatsapp || c.telefone || c.email || '—'}
