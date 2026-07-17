@@ -5,8 +5,6 @@ import type {
   ClienteTemperatura,
 } from './types';
 
-type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline';
-
 export const STATUS_LABELS: Record<ClienteStatus, string> = {
   ativo: 'Ativo',
   inativo: 'Inativo',
@@ -14,11 +12,11 @@ export const STATUS_LABELS: Record<ClienteStatus, string> = {
   ganho: 'Ganho',
 };
 
-export const STATUS_BADGE_VARIANT: Record<ClienteStatus, BadgeVariant> = {
-  ativo: 'default',
-  inativo: 'secondary',
-  perdido: 'destructive',
-  ganho: 'default',
+export const STATUS_CLASSES: Record<ClienteStatus, string> = {
+  ativo: 'bg-primary/10 text-primary',
+  inativo: 'bg-muted text-muted-foreground',
+  perdido: 'bg-destructive/10 text-destructive',
+  ganho: 'bg-[oklch(0.62_0.16_155/0.12)] text-[oklch(0.62_0.16_155)]',
 };
 
 export const ETAPA_FUNIL_LABELS: Record<ClienteEtapaFunil, string> = {
@@ -50,15 +48,15 @@ export const PRIORIDADE_LABELS: Record<ClientePrioridade, string> = {
   urgente: 'Urgente',
 };
 
-export const PRIORIDADE_BADGE_VARIANT: Record<ClientePrioridade, BadgeVariant> = {
-  baixa: 'outline',
-  media: 'secondary',
-  alta: 'default',
-  urgente: 'destructive',
+export const PRIORIDADE_CLASSES: Record<ClientePrioridade, string> = {
+  baixa: 'bg-muted text-muted-foreground',
+  media: 'bg-secondary text-secondary-foreground',
+  alta: 'bg-[oklch(0.75_0.15_75/0.15)] text-[oklch(0.55_0.15_75)]',
+  urgente: 'bg-destructive/10 text-destructive',
 };
 
 export const TEMPERATURA_LABELS: Record<ClienteTemperatura, string> = {
-  frio: 'Frio',
-  morno: 'Morno',
-  quente: 'Quente',
+  frio: '🧊 Frio',
+  morno: '🌡️ Morno',
+  quente: '🔥 Quente',
 };
