@@ -141,7 +141,7 @@ function ClientesPage() {
                       size="sm"
                       variant="ghost"
                       className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2 text-xs"
-                      onClick={() => handleRemover(c.id, c.nome)}
+                      onClick={(e) => { e.stopPropagation(); handleRemover(c.id, c.nome); }}
                     >
                       Remover
                     </Button>
