@@ -113,7 +113,7 @@ function PerfilPage() {
     }
     const payload = Object.fromEntries(
       Object.entries(values).map(([k, v]) => [k, v === "" ? null : v]),
-    );
+    ) as Partial<ProfileForm>;
     const { error } = await supabase
       .from("profiles")
       .update(payload)
