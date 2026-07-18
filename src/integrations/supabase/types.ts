@@ -16,39 +16,50 @@ export type Database = {
     Tables: {
       client_timeline: {
         Row: {
-          id: string
+          category: string
           client_id: string
-          owner_id: string
-          event_type: string
-          title: string
-          description: string | null
-          metadata: Json
-          created_by: string | null
           created_at: string
+          created_by: string | null
+          description: string | null
+          event_type: string
+          id: string
+          metadata: Json
+          owner_id: string
+          title: string
         }
         Insert: {
-          id?: string
+          category?: string
           client_id: string
-          owner_id: string
-          event_type: string
-          title: string
-          description?: string | null
-          metadata?: Json
-          created_by?: string | null
           created_at?: string
+          created_by?: string | null
+          description?: string | null
+          event_type: string
+          id?: string
+          metadata?: Json
+          owner_id: string
+          title: string
         }
         Update: {
-          id?: string
+          category?: string
           client_id?: string
-          owner_id?: string
-          event_type?: string
-          title?: string
-          description?: string | null
-          metadata?: Json
-          created_by?: string | null
           created_at?: string
+          created_by?: string | null
+          description?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json
+          owner_id?: string
+          title?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "client_timeline_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       clients: {
         Row: {
