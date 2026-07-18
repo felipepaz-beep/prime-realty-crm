@@ -535,6 +535,86 @@ export type Database = {
         }
         Relationships: []
       }
+      commissions: {
+        Row: {
+          client_id: string | null
+          commission_percentage: number
+          commission_value: number
+          created_at: string
+          expected_date: string | null
+          gross_value: number
+          id: string
+          notes: string | null
+          owner_id: string
+          payment_method: Database["public"]["Enums"]["payment_method"] | null
+          property_code: string | null
+          received_date: string | null
+          status: Database["public"]["Enums"]["commission_status"]
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          commission_percentage?: number
+          commission_value?: number
+          created_at?: string
+          expected_date?: string | null
+          gross_value?: number
+          id?: string
+          notes?: string | null
+          owner_id: string
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          property_code?: string | null
+          received_date?: string | null
+          status?: Database["public"]["Enums"]["commission_status"]
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          commission_percentage?: number
+          commission_value?: number
+          created_at?: string
+          expected_date?: string | null
+          gross_value?: number
+          id?: string
+          notes?: string | null
+          owner_id?: string
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          property_code?: string | null
+          received_date?: string | null
+          status?: Database["public"]["Enums"]["commission_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commissions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commissions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_followups_pendentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commissions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_prioritarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commissions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_recentes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           channel: string
@@ -611,6 +691,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      goals: {
+        Row: {
+          created_at: string
+          goal_commission: number
+          goal_sales: number
+          goal_value: number
+          id: string
+          month: number
+          owner_id: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          goal_commission?: number
+          goal_sales?: number
+          goal_value?: number
+          id?: string
+          month: number
+          owner_id: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          goal_commission?: number
+          goal_sales?: number
+          goal_value?: number
+          id?: string
+          month?: number
+          owner_id?: string
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
       }
       messages: {
         Row: {
@@ -1074,6 +1190,28 @@ export type Database = {
         }
         Relationships: []
       }
+      v_financeiro_resumo: {
+        Row: {
+          atrasado_total: number | null
+          owner_id: string | null
+          previsto_mes_atual: number | null
+          previsto_total: number | null
+          qtd_previstas: number | null
+          qtd_recebidas: number | null
+          recebido_mes_atual: number | null
+          recebido_total: number | null
+        }
+        Relationships: []
+      }
+      v_fluxo_mensal: {
+        Row: {
+          mes: string | null
+          owner_id: string | null
+          previsto: number | null
+          realizado: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {
@@ -1086,6 +1224,15 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      commission_status: "prevista" | "recebida" | "atrasada" | "cancelada"
+      payment_method:
+        | "pix"
+        | "ted"
+        | "transferencia"
+        | "boleto"
+        | "cheque"
+        | "dinheiro"
+        | "outro"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1214,6 +1361,16 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      commission_status: ["prevista", "recebida", "atrasada", "cancelada"],
+      payment_method: [
+        "pix",
+        "ted",
+        "transferencia",
+        "boleto",
+        "cheque",
+        "dinheiro",
+        "outro",
+      ],
     },
   },
 } as const
