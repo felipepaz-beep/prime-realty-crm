@@ -109,6 +109,155 @@ export type Database = {
           },
         ]
       }
+      ai_prompts: {
+        Row: {
+          category: string
+          content: string
+          created_at: string
+          deleted_at: string | null
+          description: string | null
+          favorite: boolean
+          id: string
+          is_system: boolean
+          metadata: Json
+          name: string
+          owner_id: string
+          provider: string | null
+          updated_at: string
+          variables: Json
+          version: number
+        }
+        Insert: {
+          category?: string
+          content: string
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          favorite?: boolean
+          id?: string
+          is_system?: boolean
+          metadata?: Json
+          name: string
+          owner_id: string
+          provider?: string | null
+          updated_at?: string
+          variables?: Json
+          version?: number
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          favorite?: boolean
+          id?: string
+          is_system?: boolean
+          metadata?: Json
+          name?: string
+          owner_id?: string
+          provider?: string | null
+          updated_at?: string
+          variables?: Json
+          version?: number
+        }
+        Relationships: []
+      }
+      ai_usage_logs: {
+        Row: {
+          action: string
+          category: string
+          client_id: string | null
+          cost_usd: number | null
+          created_at: string
+          duration_ms: number | null
+          entity_id: string | null
+          entity_type: string | null
+          error_message: string | null
+          fallback_from: string | null
+          id: string
+          metadata: Json
+          model: string
+          output_tokens: number | null
+          owner_id: string
+          prompt_tokens: number | null
+          provider: string
+          status: string
+          total_tokens: number | null
+        }
+        Insert: {
+          action: string
+          category: string
+          client_id?: string | null
+          cost_usd?: number | null
+          created_at?: string
+          duration_ms?: number | null
+          entity_id?: string | null
+          entity_type?: string | null
+          error_message?: string | null
+          fallback_from?: string | null
+          id?: string
+          metadata?: Json
+          model: string
+          output_tokens?: number | null
+          owner_id: string
+          prompt_tokens?: number | null
+          provider: string
+          status?: string
+          total_tokens?: number | null
+        }
+        Update: {
+          action?: string
+          category?: string
+          client_id?: string | null
+          cost_usd?: number | null
+          created_at?: string
+          duration_ms?: number | null
+          entity_id?: string | null
+          entity_type?: string | null
+          error_message?: string | null
+          fallback_from?: string | null
+          id?: string
+          metadata?: Json
+          model?: string
+          output_tokens?: number | null
+          owner_id?: string
+          prompt_tokens?: number | null
+          provider?: string
+          status?: string
+          total_tokens?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_logs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_usage_logs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_followups_pendentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_usage_logs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_prioritarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_usage_logs_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_recentes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_documents: {
         Row: {
           category: string
