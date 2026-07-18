@@ -260,7 +260,7 @@ function WhatsAppPage() {
 
   return (
     <div className="flex h-full overflow-hidden">
-      <ResizablePanelGroup direction="horizontal">
+      <ResizablePanelGroup orientation="horizontal">
         <ResizablePanel defaultSize={28} minSize={22} maxSize={40}>
           <div className="flex flex-col h-full border-r">
             <div className="px-4 py-3 border-b shrink-0">
