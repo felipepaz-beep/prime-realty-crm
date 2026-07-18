@@ -7,7 +7,7 @@ export const commissionSchema = z
     gross_value: z.coerce.number().min(0, 'Informe o valor bruto'),
     commission_percentage: z.coerce.number().min(0).max(100),
     commission_value: z.coerce.number().min(0),
-    status: z.enum(['prevista', 'recebida', 'atrasada', 'cancelada']).default('prevista'),
+    status: z.enum(['prevista', 'recebida', 'atrasada', 'cancelada']),
     expected_date: z.string().nullable().optional(),
     received_date: z.string().nullable().optional(),
     payment_method: z
