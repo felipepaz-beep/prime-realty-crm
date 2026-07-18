@@ -97,6 +97,13 @@ export type Database = {
             foreignKeyName: "activities_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "v_dashboard_prioritarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "v_dashboard_recentes"
             referencedColumns: ["id"]
           },
@@ -152,6 +159,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "v_dashboard_followups_pendentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_timeline_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_prioritarios"
             referencedColumns: ["id"]
           },
           {
@@ -482,6 +496,13 @@ export type Database = {
             foreignKeyName: "activities_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "v_dashboard_prioritarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "v_dashboard_recentes"
             referencedColumns: ["id"]
           },
@@ -570,10 +591,27 @@ export type Database = {
             foreignKeyName: "activities_client_id_fkey"
             columns: ["client_id"]
             isOneToOne: false
+            referencedRelation: "v_dashboard_prioritarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
             referencedRelation: "v_dashboard_recentes"
             referencedColumns: ["id"]
           },
         ]
+      }
+      v_dashboard_atividades_hoje: {
+        Row: {
+          atrasadas: number | null
+          followups_hoje: number | null
+          tarefas_hoje: number | null
+          total_hoje: number | null
+          visitas_hoje: number | null
+        }
+        Relationships: []
       }
       v_dashboard_followups_pendentes: {
         Row: {
@@ -596,6 +634,23 @@ export type Database = {
         }
         Relationships: []
       }
+      v_dashboard_indicadores: {
+        Row: {
+          clientes_inativos: number | null
+          leads_captacao: number | null
+          leads_com_origem: number | null
+          leads_contato: number | null
+          leads_ganhos: number | null
+          leads_negociacao: number | null
+          leads_perdidos: number | null
+          leads_proposta: number | null
+          leads_qualificados: number | null
+          leads_visita: number | null
+          receita_potencial: number | null
+          score_medio: number | null
+        }
+        Relationships: []
+      }
       v_dashboard_metricas: {
         Row: {
           clientes_ativos: number | null
@@ -609,6 +664,24 @@ export type Database = {
           novos_este_mes: number | null
           receita_total: number | null
           total_clientes: number | null
+        }
+        Relationships: []
+      }
+      v_dashboard_prioritarios: {
+        Row: {
+          email: string | null
+          etapa_funil: string | null
+          id: string | null
+          nome: string | null
+          origem_lead: string | null
+          prioridade: string | null
+          proximo_followup: string | null
+          score: number | null
+          status: string | null
+          telefone: string | null
+          temperatura: string | null
+          ultimo_contato: string | null
+          whatsapp: string | null
         }
         Relationships: []
       }
