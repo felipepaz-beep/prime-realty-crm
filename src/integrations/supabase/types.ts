@@ -728,6 +728,39 @@ export type Database = {
         }
         Relationships: []
       }
+      integrations: {
+        Row: {
+          configuration: Json
+          created_at: string
+          id: string
+          last_sync: string | null
+          owner_id: string
+          provider: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          configuration?: Json
+          created_at?: string
+          id?: string
+          last_sync?: string | null
+          owner_id: string
+          provider: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          configuration?: Json
+          created_at?: string
+          id?: string
+          last_sync?: string | null
+          owner_id?: string
+          provider?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           attachment: Json | null
@@ -901,6 +934,36 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          key: string
+          owner_id: string
+          updated_at: string
+          value: Json | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          key: string
+          owner_id: string
+          updated_at?: string
+          value?: Json | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          key?: string
+          owner_id?: string
+          updated_at?: string
+          value?: Json | null
         }
         Relationships: []
       }
