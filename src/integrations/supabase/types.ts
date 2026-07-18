@@ -728,6 +728,39 @@ export type Database = {
         }
         Relationships: []
       }
+      integrations: {
+        Row: {
+          configuration: Json
+          created_at: string
+          id: string
+          last_sync: string | null
+          owner_id: string
+          provider: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          configuration?: Json
+          created_at?: string
+          id?: string
+          last_sync?: string | null
+          owner_id: string
+          provider: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          configuration?: Json
+          created_at?: string
+          id?: string
+          last_sync?: string | null
+          owner_id?: string
+          provider?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           attachment: Json | null
@@ -901,6 +934,36 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          key: string
+          owner_id: string
+          updated_at: string
+          value: Json | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          key: string
+          owner_id: string
+          updated_at?: string
+          value?: Json | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          key?: string
+          owner_id?: string
+          updated_at?: string
+          value?: Json | null
         }
         Relationships: []
       }
@@ -1095,6 +1158,77 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      v_analytics_atividades: {
+        Row: {
+          atrasadas: number | null
+          status: string | null
+          total: number | null
+          type: string | null
+        }
+        Relationships: []
+      }
+      v_analytics_conversas: {
+        Row: {
+          channel: string | null
+          mensagens_nao_lidas: number | null
+          status: string | null
+          total: number | null
+        }
+        Relationships: []
+      }
+      v_analytics_documentos: {
+        Row: {
+          category: string | null
+          favoritos: number | null
+          total: number | null
+          total_bytes: number | null
+        }
+        Relationships: []
+      }
+      v_analytics_funil_conversao: {
+        Row: {
+          convertidos: number | null
+          etapa_funil: string | null
+          pct_total: number | null
+          taxa_conversao: number | null
+          total: number | null
+        }
+        Relationships: []
+      }
+      v_analytics_kpis: {
+        Row: {
+          clientes_ativos: number | null
+          em_negociacao: number | null
+          followups_atrasados: number | null
+          leads_perdidos: number | null
+          novos_este_mes: number | null
+          propostas_enviadas: number | null
+          score_medio: number | null
+          taxa_conversao_geral: number | null
+          total_clientes: number | null
+          vendas_concluidas: number | null
+          visitas_agendadas: number | null
+        }
+        Relationships: []
+      }
+      v_analytics_origem_leads: {
+        Row: {
+          convertidos: number | null
+          origem: string | null
+          taxa_conversao: number | null
+          total: number | null
+        }
+        Relationships: []
+      }
+      v_analytics_timeline_eventos: {
+        Row: {
+          category: string | null
+          event_type: string | null
+          mes: string | null
+          total: number | null
+        }
+        Relationships: []
       }
       v_dashboard_atividades_hoje: {
         Row: {

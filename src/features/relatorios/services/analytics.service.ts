@@ -1,45 +1,47 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { AnalyticsKPIs, AtividadeAnalytics, ConversaAnalytics, DocumentoAnalytics, FunilConversao, OrigemLead, TimelineEvento } from '../types';
 
+const db = supabase as any;
+
 export const AnalyticsService = {
   async getKPIs(): Promise<AnalyticsKPIs> {
-    const { data, error } = await supabase.from('v_analytics_kpis').select('*').single();
+    const { data, error } = await db.from('v_analytics_kpis').select('*').single();
     if (error) throw error;
-    return data as AnalyticsKPIs;
+    return (data as unknown) as AnalyticsKPIs;
   },
   async getFunilConversao(): Promise<FunilConversao[]> {
-    const { data, error } = await supabase.from('v_analytics_funil_conversao').select('*');
+    const { data, error } = await db.from('v_analytics_funil_conversao').select('*');
     if (error) throw error;
-    return (data ?? []) as FunilConversao[];
+    return ((data as unknown) ?? []) as FunilConversao[];
   },
   async getOrigemLeads(): Promise<OrigemLead[]> {
-    const { data, error } = await supabase.from('v_analytics_origem_leads').select('*');
+    const { data, error } = await db.from('v_analytics_origem_leads').select('*');
     if (error) throw error;
-    return (data ?? []) as OrigemLead[];
+    return ((data as unknown) ?? []) as OrigemLead[];
   },
   async getAtividades(): Promise<AtividadeAnalytics[]> {
-    const { data, error } = await supabase.from('v_analytics_atividades').select('*');
+    const { data, error } = await db.from('v_analytics_atividades').select('*');
     if (error) throw error;
-    return (data ?? []) as AtividadeAnalytics[];
+    return ((data as unknown) ?? []) as AtividadeAnalytics[];
   },
   async getDocumentos(): Promise<DocumentoAnalytics[]> {
-    const { data, error } = await supabase.from('v_analytics_documentos').select('*');
+    const { data, error } = await db.from('v_analytics_documentos').select('*');
     if (error) throw error;
-    return (data ?? []) as DocumentoAnalytics[];
+    return ((data as unknown) ?? []) as DocumentoAnalytics[];
   },
   async getConversas(): Promise<ConversaAnalytics[]> {
-    const { data, error } = await supabase.from('v_analytics_conversas').select('*');
+    const { data, error } = await db.from('v_analytics_conversas').select('*');
     if (error) throw error;
-    return (data ?? []) as ConversaAnalytics[];
+    return ((data as unknown) ?? []) as ConversaAnalytics[];
   },
   async getTimelineEventos(meses = 6): Promise<TimelineEvento[]> {
     const since = new Date();
     since.setMonth(since.getMonth() - meses);
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('v_analytics_timeline_eventos').select('*')
       .gte('mes', since.toISOString().split('T')[0]);
     if (error) throw error;
-    return (data ?? []) as TimelineEvento[];
+    return ((data as unknown) ?? []) as TimelineEvento[];
   },
 };
 

@@ -138,9 +138,11 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton disabled tooltip="Configurações" className="opacity-60">
-              <Settings className="h-4 w-4" />
-              {!collapsed && <span>Configurações</span>}
+            <SidebarMenuButton asChild tooltip="Configurações">
+              <a href="/configuracoes">
+                <Settings className="h-4 w-4" />
+                {!collapsed && <span>Configurações</span>}
+              </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
