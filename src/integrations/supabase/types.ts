@@ -109,6 +109,98 @@ export type Database = {
           },
         ]
       }
+      client_documents: {
+        Row: {
+          category: string
+          client_id: string
+          created_at: string
+          deleted_at: string | null
+          description: string | null
+          extension: string
+          favorite: boolean
+          file_name: string
+          file_size: number
+          id: string
+          metadata: Json
+          mime_type: string
+          original_name: string
+          owner_id: string
+          storage_path: string
+          tags: Json
+          updated_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          category?: string
+          client_id: string
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          extension: string
+          favorite?: boolean
+          file_name: string
+          file_size: number
+          id?: string
+          metadata?: Json
+          mime_type: string
+          original_name: string
+          owner_id: string
+          storage_path: string
+          tags?: Json
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          category?: string
+          client_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          extension?: string
+          favorite?: boolean
+          file_name?: string
+          file_size?: number
+          id?: string
+          metadata?: Json
+          mime_type?: string
+          original_name?: string
+          owner_id?: string
+          storage_path?: string
+          tags?: Json
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_documents_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_documents_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_followups_pendentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_documents_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_prioritarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_documents_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_recentes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_timeline: {
         Row: {
           category: string
