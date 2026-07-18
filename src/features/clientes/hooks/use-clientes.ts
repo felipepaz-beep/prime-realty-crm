@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { atualizarCliente, buscarClientePorId, criarCliente, listarClientes, removerCliente, restaurarCliente } from '../services/clients.service';
+import { TimelineService } from '../services/timeline.service';
 import type { ClienteFiltros, ClienteInsert, ClienteUpdate } from '../types';
 
 export const clientesKeys = {
@@ -24,20 +25,38 @@ export function useClienteDetalhe(id: string) {
 
 export function useCriarCliente() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (p: ClienteInsert) => criarCliente(p), onSuccess: () => qc.invalidateQueries({ queryKey: clientesKeys.lists() }) });
+  return useMutation({
+    mutationFn: (payload: ClienteInsert) => criarCliente(payload),
+    onSuccess: (cliente) => {
+      qc.invalidateQueries({ queryKey: clientesKeys.lists() });
+      TimelineService.clienteCriado(cliente.id, cliente.nome);
+    },
+  });
 }
 
 export function useAtualizarCliente(id: string) {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (p: ClienteUpdate) => atualizarCliente(id, p), onSuccess: (data) => { qc.invalidateQueries({ queryKey: clientesKeys.lists() }); qc.setQueryData(clientesKeys.detail(id), data); } });
+  return useMutation({
+    mutationFn: (payload: ClienteUpdate) => atualizarCliente(id, payload),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: clientesKeys.lists() });
+      qc.setQueryData(clientesKeys.detail(id), data);
+    },
+  });
 }
 
 export function useRemoverCliente() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (id: string) => removerCliente(id), onSuccess: () => qc.invalidateQueries({ queryKey: clientesKeys.lists() }) });
+  return useMutation({
+    mutationFn: (id: string) => removerCliente(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: clientesKeys.lists() }); },
+  });
 }
 
 export function useRestaurarCliente() {
   const qc = useQueryClient();
-  return useMutation({ mutationFn: (id: string) => restaurarCliente(id), onSuccess: () => qc.invalidateQueries({ queryKey: clientesKeys.lists() }) });
+  return useMutation({
+    mutationFn: (id: string) => restaurarCliente(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: clientesKeys.lists() }); },
+  });
 }
