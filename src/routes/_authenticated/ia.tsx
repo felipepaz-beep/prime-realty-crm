@@ -148,7 +148,7 @@ function BibliotecaPrompts() {
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium truncate">{prompt.name}</p>
                   {prompt.is_system && <Badge variant="secondary" className="text-[10px] h-4">Sistema</Badge>}
-                  <Badge variant="outline" className="text-[10px] h-4">{AI_CATEGORY_LABELS[prompt.category]}</Badge>
+                  <Badge variant="outline" className="text-[10px] h-4">{AI_CATEGORY_LABELS[prompt.category as AICategory]}</Badge>
                 </div>
                 {prompt.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{prompt.description}</p>}
                 <p className="text-xs text-muted-foreground mt-1 line-clamp-2 font-mono bg-muted/50 rounded px-1.5 py-1">{prompt.content}</p>
