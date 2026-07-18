@@ -38,7 +38,7 @@ type NavItem = {
 
 const workspaceItems: NavItem[] = [
   { title: "Início", url: "/inicio", icon: Home },
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, soon: true },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Clientes", url: "/clientes", icon: Users },
   { title: "Agenda", url: "/agenda", icon: Calendar, soon: true },
   { title: "Kanban", url: "/kanban", icon: KanbanSquare },
