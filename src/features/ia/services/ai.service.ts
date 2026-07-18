@@ -131,7 +131,9 @@ export const UsageService = {
     const { data: sessionData } = await supabase.auth.getUser();
     const ownerId = sessionData.user?.id;
     if (!ownerId) return;
-    await supabase.from('ai_usage_logs').insert({ owner_id: ownerId, action: params.action, category: params.category, provider: params.response.provider, model: params.response.model, prompt_tokens: params.response.promptTokens, output_tokens: params.response.outputTokens, total_tokens: params.response.totalTokens, cost_usd: params.response.costUsd, duration_ms: params.response.durationMs, status: params.response.fromFallback ? 'fallback' : (params.status ?? 'success'), error_message: params.errorMessage ?? null, fallback_from: params.response.fallbackFrom ?? null, client_id: params.clientId ?? null, entity_type: params.entityType ?? null, entity_id: params.entityId ?? null } as never).catch(console.warn);
+    try {
+      await supabase.from('ai_usage_logs').insert({ owner_id: ownerId, action: params.action, category: params.category, provider: params.response.provider, model: params.response.model, prompt_tokens: params.response.promptTokens, output_tokens: params.response.outputTokens, total_tokens: params.response.totalTokens, cost_usd: params.response.costUsd, duration_ms: params.response.durationMs, status: params.response.fromFallback ? 'fallback' : (params.status ?? 'success'), error_message: params.errorMessage ?? null, fallback_from: params.response.fallbackFrom ?? null, client_id: params.clientId ?? null, entity_type: params.entityType ?? null, entity_id: params.entityId ?? null } as never);
+    } catch (e) { console.warn(e); }
   },
   async getSummary(days = 30): Promise<AIUsageSummary> {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
