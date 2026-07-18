@@ -22,4 +22,4 @@ export const activityFormSchema = z.object({
   { message: 'Data de início não pode ser após o prazo', path: ['due_at'] },
 );
 
-export type ActivityFormValues = z.infer<typeof activityFormSchema>;
+export type ActivityFormValues = z.input<typeof activityFormSchema>;
