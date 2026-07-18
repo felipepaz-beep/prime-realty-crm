@@ -47,7 +47,7 @@ const workspaceItems: NavItem[] = [
 
 const toolItems: NavItem[] = [
   { title: "Financeiro", url: "/financeiro", icon: Wallet, soon: true },
-  { title: "IA", url: "/ia", icon: Sparkles, soon: true },
+  { title: "IA", url: "/ia", icon: Sparkles },
   { title: "WhatsApp", url: "/whatsapp", icon: MessageCircle },
   { title: "Relatórios", url: "/relatorios", icon: BarChart3, soon: true },
   { title: "Pesquisa", url: "/pesquisa", icon: Search, soon: true },
