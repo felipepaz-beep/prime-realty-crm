@@ -59,6 +59,20 @@ export type Database = {
             referencedRelation: "clients"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "client_timeline_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_followups_pendentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_timeline_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_recentes"
+            referencedColumns: ["id"]
+          },
         ]
       }
       clients: {
@@ -297,7 +311,55 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_dashboard_followups_pendentes: {
+        Row: {
+          etapa_funil: string | null
+          id: string | null
+          nome: string | null
+          prioridade: string | null
+          proximo_followup: string | null
+          situacao: string | null
+          telefone: string | null
+          temperatura: string | null
+          whatsapp: string | null
+        }
+        Relationships: []
+      }
+      v_dashboard_funil: {
+        Row: {
+          etapa_funil: string | null
+          total: number | null
+        }
+        Relationships: []
+      }
+      v_dashboard_metricas: {
+        Row: {
+          clientes_ativos: number | null
+          clientes_ganhos: number | null
+          clientes_perdidos: number | null
+          followups_atrasados: number | null
+          followups_hoje: number | null
+          leads_frios: number | null
+          leads_mornos: number | null
+          leads_quentes: number | null
+          novos_este_mes: number | null
+          receita_total: number | null
+          total_clientes: number | null
+        }
+        Relationships: []
+      }
+      v_dashboard_recentes: {
+        Row: {
+          created_at: string | null
+          etapa_funil: string | null
+          id: string | null
+          nome: string | null
+          origem_lead: string | null
+          prioridade: string | null
+          temperatura: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {
