@@ -386,6 +386,142 @@ export type Database = {
         }
         Relationships: []
       }
+      conversations: {
+        Row: {
+          channel: string
+          client_id: string
+          created_at: string
+          deleted_at: string | null
+          id: string
+          last_message: string | null
+          last_message_at: string | null
+          metadata: Json
+          owner_id: string
+          status: string
+          subject: string | null
+          unread_count: number
+          updated_at: string
+        }
+        Insert: {
+          channel?: string
+          client_id: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          last_message?: string | null
+          last_message_at?: string | null
+          metadata?: Json
+          owner_id: string
+          status?: string
+          subject?: string | null
+          unread_count?: number
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          client_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          last_message?: string | null
+          last_message_at?: string | null
+          metadata?: Json
+          owner_id?: string
+          status?: string
+          subject?: string | null
+          unread_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_followups_pendentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_prioritarios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_recentes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          attachment: Json | null
+          content: string | null
+          conversation_id: string
+          created_at: string
+          deleted_at: string | null
+          direction: string
+          id: string
+          metadata: Json
+          read_at: string | null
+          sender: string | null
+          sent_at: string
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          attachment?: Json | null
+          content?: string | null
+          conversation_id: string
+          created_at?: string
+          deleted_at?: string | null
+          direction: string
+          id?: string
+          metadata?: Json
+          read_at?: string | null
+          sender?: string | null
+          sent_at?: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          attachment?: Json | null
+          content?: string | null
+          conversation_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          direction?: string
+          id?: string
+          metadata?: Json
+          read_at?: string | null
+          sender?: string | null
+          sent_at?: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null

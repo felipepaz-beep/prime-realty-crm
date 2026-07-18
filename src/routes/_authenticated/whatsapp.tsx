@@ -165,7 +165,7 @@ function ChatWindow({ conversaId, onFechar }: { conversaId: string; onFechar: ()
     if (!content || !conversa) return;
     setTexto('');
     try {
-      await enviar.mutateAsync({ conversation_id: conversaId, client_id: conversa.client_id, type: 'text', content });
+      await enviar.mutateAsync({ conversation_id: conversaId, client_id: conversa.client_id, direction: 'outgoing', type: 'text', content });
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     } catch { toast.error('Erro ao enviar mensagem.'); setTexto(content); }
   }, [texto, conversaId, conversa, enviar]);
@@ -260,7 +260,7 @@ function WhatsAppPage() {
 
   return (
     <div className="flex h-full overflow-hidden">
-      <ResizablePanelGroup direction="horizontal">
+      <ResizablePanelGroup orientation="horizontal">
         <ResizablePanel defaultSize={28} minSize={22} maxSize={40}>
           <div className="flex flex-col h-full border-r">
             <div className="px-4 py-3 border-b shrink-0">
