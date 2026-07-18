@@ -35,7 +35,7 @@ export function ActivityForm({ defaultValues, clienteId, onSubmit, onCancel, isL
       duration_minutes: defaultValues?.duration_minutes ?? undefined,
       location: defaultValues?.location ?? '',
       metadata: defaultValues?.metadata ?? {},
-    },
+    } as ActivityFormValues,
   });
 
   return (

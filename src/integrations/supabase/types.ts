@@ -14,6 +14,94 @@ export type Database = {
   }
   public: {
     Tables: {
+      activities: {
+        Row: {
+          client_id: string | null
+          completed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          description: string | null
+          due_at: string | null
+          duration_minutes: number | null
+          id: string
+          location: string | null
+          metadata: Json
+          owner_id: string
+          priority: string
+          recurrence: Json | null
+          reminder_at: string | null
+          scheduled_at: string | null
+          status: string
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          due_at?: string | null
+          duration_minutes?: number | null
+          id?: string
+          location?: string | null
+          metadata?: Json
+          owner_id: string
+          priority?: string
+          recurrence?: Json | null
+          reminder_at?: string | null
+          scheduled_at?: string | null
+          status?: string
+          title: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          description?: string | null
+          due_at?: string | null
+          duration_minutes?: number | null
+          id?: string
+          location?: string | null
+          metadata?: Json
+          owner_id?: string
+          priority?: string
+          recurrence?: Json | null
+          reminder_at?: string | null
+          scheduled_at?: string | null
+          status?: string
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_followups_pendentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_recentes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_timeline: {
         Row: {
           category: string
@@ -311,6 +399,182 @@ export type Database = {
       }
     }
     Views: {
+      v_activities_atrasadas: {
+        Row: {
+          client_id: string | null
+          completed_at: string | null
+          created_at: string | null
+          deleted_at: string | null
+          description: string | null
+          due_at: string | null
+          duration_minutes: number | null
+          id: string | null
+          location: string | null
+          metadata: Json | null
+          owner_id: string | null
+          priority: string | null
+          recurrence: Json | null
+          reminder_at: string | null
+          scheduled_at: string | null
+          status: string | null
+          title: string | null
+          type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          client_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          due_at?: string | null
+          duration_minutes?: number | null
+          id?: string | null
+          location?: string | null
+          metadata?: Json | null
+          owner_id?: string | null
+          priority?: string | null
+          recurrence?: Json | null
+          reminder_at?: string | null
+          scheduled_at?: string | null
+          status?: string | null
+          title?: string | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          client_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          due_at?: string | null
+          duration_minutes?: number | null
+          id?: string | null
+          location?: string | null
+          metadata?: Json | null
+          owner_id?: string | null
+          priority?: string | null
+          recurrence?: Json | null
+          reminder_at?: string | null
+          scheduled_at?: string | null
+          status?: string | null
+          title?: string | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_followups_pendentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_recentes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_activities_hoje: {
+        Row: {
+          client_id: string | null
+          completed_at: string | null
+          created_at: string | null
+          deleted_at: string | null
+          description: string | null
+          due_at: string | null
+          duration_minutes: number | null
+          id: string | null
+          location: string | null
+          metadata: Json | null
+          owner_id: string | null
+          priority: string | null
+          recurrence: Json | null
+          reminder_at: string | null
+          scheduled_at: string | null
+          status: string | null
+          title: string | null
+          type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          client_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          due_at?: string | null
+          duration_minutes?: number | null
+          id?: string | null
+          location?: string | null
+          metadata?: Json | null
+          owner_id?: string | null
+          priority?: string | null
+          recurrence?: Json | null
+          reminder_at?: string | null
+          scheduled_at?: string | null
+          status?: string | null
+          title?: string | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          client_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          due_at?: string | null
+          duration_minutes?: number | null
+          id?: string | null
+          location?: string | null
+          metadata?: Json | null
+          owner_id?: string | null
+          priority?: string | null
+          recurrence?: Json | null
+          reminder_at?: string | null
+          scheduled_at?: string | null
+          status?: string | null
+          title?: string | null
+          type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_followups_pendentes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "v_dashboard_recentes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_dashboard_followups_pendentes: {
         Row: {
           etapa_funil: string | null
