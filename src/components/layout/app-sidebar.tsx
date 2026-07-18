@@ -139,10 +139,10 @@ export function AppSidebar() {
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip="Configurações">
-              <a href="/configuracoes">
+              <Link to="/configuracoes" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />
                 {!collapsed && <span>Configurações</span>}
-              </a>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
