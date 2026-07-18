@@ -84,16 +84,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "CRM premium para corretores de imóveis autônomos. Gerencie clientes, agenda, pipeline e finanças em um só lugar.",
+          "CRM premium para corretores de imóveis autônomos. Clientes, agenda, pipeline e finanças em um só lugar.",
       },
       { name: "author", content: "Corretor CRM" },
-      { property: "og:title", content: "Corretor CRM — Gestão premium" },
+      { property: "og:title", content: "Corretor CRM — Gestão premium para corretores autônomos" },
       {
         property: "og:description",
-        content: "CRM premium para corretores de imóveis autônomos.",
+        content: "CRM premium para corretores de imóveis autônomos. Clientes, agenda, pipeline e finanças em um só lugar.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Corretor CRM — Gestão premium para corretores autônomos" },
+      { name: "twitter:description", content: "CRM premium para corretores de imóveis autônomos. Clientes, agenda, pipeline e finanças em um só lugar." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/51432850-3aa9-4be4-8e19-c01e615ebdbf/id-preview-29a365f8--90e6c6b9-6594-43e6-800f-3e3a87497c0d.lovable.app-1784393615410.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/51432850-3aa9-4be4-8e19-c01e615ebdbf/id-preview-29a365f8--90e6c6b9-6594-43e6-800f-3e3a87497c0d.lovable.app-1784393615410.png" },
     ],
     links: [
       {
