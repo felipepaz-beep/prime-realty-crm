@@ -20,6 +20,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
 import { Route as AuthenticatedKanbanRouteImport } from './routes/_authenticated/kanban'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
+import { Route as AuthenticatedWhatsappRouteImport } from './routes/_authenticated/whatsapp'
 import { Route as AuthenticatedClientesClienteIdRouteImport } from './routes/_authenticated/clientes.$clienteId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -76,6 +77,11 @@ const AuthenticatedPerfilRoute = AuthenticatedPerfilRouteImport.update({
   path: '/perfil',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedWhatsappRoute = AuthenticatedWhatsappRouteImport.update({
+  id: '/whatsapp',
+  path: '/whatsapp',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedClientesClienteIdRoute =
   AuthenticatedClientesClienteIdRouteImport.update({
     id: '/$clienteId',
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/inicio': typeof AuthenticatedInicioRoute
   '/kanban': typeof AuthenticatedKanbanRoute
   '/perfil': typeof AuthenticatedPerfilRoute
+  '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/clientes/$clienteId': typeof AuthenticatedClientesClienteIdRoute
 }
 export interface FileRoutesByTo {
@@ -107,6 +114,7 @@ export interface FileRoutesByTo {
   '/inicio': typeof AuthenticatedInicioRoute
   '/kanban': typeof AuthenticatedKanbanRoute
   '/perfil': typeof AuthenticatedPerfilRoute
+  '/whatsapp': typeof AuthenticatedWhatsappRoute
   '/clientes/$clienteId': typeof AuthenticatedClientesClienteIdRoute
 }
 export interface FileRoutesById {
@@ -122,6 +130,7 @@ export interface FileRoutesById {
   '/_authenticated/inicio': typeof AuthenticatedInicioRoute
   '/_authenticated/kanban': typeof AuthenticatedKanbanRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
+  '/_authenticated/whatsapp': typeof AuthenticatedWhatsappRoute
   '/_authenticated/clientes/$clienteId': typeof AuthenticatedClientesClienteIdRoute
 }
 export interface FileRouteTypes {
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/inicio'
     | '/kanban'
     | '/perfil'
+    | '/whatsapp'
     | '/clientes/$clienteId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/inicio'
     | '/kanban'
     | '/perfil'
+    | '/whatsapp'
     | '/clientes/$clienteId'
   id:
     | '__root__'
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/_authenticated/inicio'
     | '/_authenticated/kanban'
     | '/_authenticated/perfil'
+    | '/_authenticated/whatsapp'
     | '/_authenticated/clientes/$clienteId'
   fileRoutesById: FileRoutesById
 }
@@ -254,6 +266,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPerfilRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/whatsapp': {
+      id: '/_authenticated/whatsapp'
+      path: '/whatsapp'
+      fullPath: '/whatsapp'
+      preLoaderRoute: typeof AuthenticatedWhatsappRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/clientes/$clienteId': {
       id: '/_authenticated/clientes/$clienteId'
       path: '/$clienteId'
@@ -284,6 +303,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
   AuthenticatedKanbanRoute: typeof AuthenticatedKanbanRoute
   AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
+  AuthenticatedWhatsappRoute: typeof AuthenticatedWhatsappRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -293,6 +313,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedInicioRoute: AuthenticatedInicioRoute,
   AuthenticatedKanbanRoute: AuthenticatedKanbanRoute,
   AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
+  AuthenticatedWhatsappRoute: AuthenticatedWhatsappRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
