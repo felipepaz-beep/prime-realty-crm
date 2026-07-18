@@ -1,59 +1,43 @@
-// ─── Tipos de evento suportados ──────────────────────────────────────────────
+export type TimelineCategory =
+  | 'ciclo_vida' | 'pipeline' | 'comunicacao' | 'visita'
+  | 'documento' | 'tarefa' | 'negocio' | 'sistema';
 
 export type TimelineEventType =
-  // Ciclo de vida
-  | 'cliente_criado'
-  | 'cliente_atualizado'
-  // Pipeline
+  | 'cliente_criado' | 'cliente_atualizado' | 'cliente_deletado'
   | 'etapa_alterada'
-  // Comunicação
-  | 'followup_realizado'
-  | 'ligacao_realizada'
-  | 'whatsapp_enviado'
-  | 'whatsapp_recebido'
-  | 'email_enviado'
-  | 'email_recebido'
-  // Visitas
-  | 'visita_agendada'
-  | 'visita_realizada'
-  // Documentos e notas
-  | 'documento_anexado'
-  | 'nota_adicionada'
-  // Tarefas
-  | 'tarefa_criada'
-  | 'tarefa_concluida'
-  // Negócio
-  | 'proposta_enviada'
-  | 'proposta_aceita'
-  | 'financiamento_iniciado'
-  | 'venda_concluida';
-
-// ─── Metadados tipados por evento ────────────────────────────────────────────
-// Cada tipo de evento pode carregar metadados específicos.
-// Manter extensível sem quebrar compatibilidade retroativa.
+  | 'followup_criado' | 'followup_realizado'
+  | 'tarefa_criada' | 'tarefa_concluida'
+  | 'ligacao_realizada' | 'ligacao_recebida'
+  | 'whatsapp_enviado' | 'whatsapp_recebido'
+  | 'email_enviado' | 'email_recebido'
+  | 'visita_agendada' | 'visita_realizada'
+  | 'documento_anexado' | 'documento_removido'
+  | 'nota_adicionada' | 'nota_atualizada'
+  | 'proposta_enviada' | 'proposta_aceita'
+  | 'financiamento_iniciado' | 'financiamento_aprovado'
+  | 'venda_concluida' | 'evento_customizado';
 
 export type TimelineMetadata =
-  | { etapa_anterior: string; etapa_nova: string }             // etapa_alterada
-  | { campos_alterados: string[] }                             // cliente_atualizado
-  | { url: string; nome: string; tamanho?: number }            // documento_anexado
-  | { tarefa_id: string; titulo: string }                      // tarefa_criada/concluida
-  | { proposta_id: string; valor?: number }                    // proposta_enviada/aceita
-  | { valor?: number }                                         // venda_concluida
-  | Record<string, unknown>;                                   // fallback extensível
-
-// ─── Entidade principal ───────────────────────────────────────────────────────
+  | { etapa_anterior: string; etapa_nova: string }
+  | { campos_alterados: string[] }
+  | { url: string; nome: string; tamanho?: number }
+  | { tarefa_id: string; titulo: string }
+  | { proposta_id: string; valor?: number }
+  | { property_code?: string; next_date?: string }
+  | { valor?: number; payment?: string }
+  | Record<string, unknown>;
 
 export interface TimelineEvent {
   id: string;
   client_id: string;
   owner_id: string;
+  category: TimelineCategory;
   event_type: TimelineEventType;
   title: string;
   description: string | null;
   metadata: TimelineMetadata;
   created_by: string | null;
   created_at: string;
-  // Join opcional com profiles (autor)
   author?: {
     full_name: string;
     display_name: string | null;
@@ -61,11 +45,10 @@ export interface TimelineEvent {
   } | null;
 }
 
-// ─── Payload de inserção ──────────────────────────────────────────────────────
-
 export interface TimelineInsertPayload {
   client_id: string;
   owner_id: string;
+  category: TimelineCategory;
   event_type: TimelineEventType;
   title: string;
   description?: string;
@@ -73,10 +56,21 @@ export interface TimelineInsertPayload {
   created_by?: string;
 }
 
-// ─── Resposta paginada ────────────────────────────────────────────────────────
+export interface TimelineFiltros {
+  categoria?: TimelineCategory;
+  event_type?: TimelineEventType;
+  busca?: string;
+  dataInicio?: string;
+  dataFim?: string;
+}
 
 export interface TimelinePaginada {
   events: TimelineEvent[];
   total: number;
   hasMore: boolean;
+}
+
+export interface TimelineGrupo {
+  label: string;
+  events: TimelineEvent[];
 }
