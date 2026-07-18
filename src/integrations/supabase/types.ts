@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       client_timeline: {
         Row: {
+          category: string
           client_id: string
           created_at: string
           created_by: string | null
@@ -27,6 +28,7 @@ export type Database = {
           title: string
         }
         Insert: {
+          category?: string
           client_id: string
           created_at?: string
           created_by?: string | null
@@ -38,6 +40,7 @@ export type Database = {
           title: string
         }
         Update: {
+          category?: string
           client_id?: string
           created_at?: string
           created_by?: string | null
