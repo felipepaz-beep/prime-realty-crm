@@ -59,6 +59,7 @@ import {
   useFluxoMensal,
   useCommissions,
   useCriarComissao,
+  useAtualizarComissao,
   useMarcarRecebida,
   useRemoverComissao,
   useGoalMes,
@@ -69,6 +70,7 @@ import {
   COMMISSION_STATUS_LABELS,
   COMMISSION_STATUS_COLORS,
   PAYMENT_METHOD_LABELS,
+  type Commission,
   type CommissionFiltros,
   type CommissionStatus,
 } from '@/features/financeiro/types';
