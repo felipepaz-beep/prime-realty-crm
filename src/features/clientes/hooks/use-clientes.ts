@@ -20,7 +20,7 @@ export function useClientes(filtros: ClienteFiltros = {}) {
 }
 
 export function useClienteDetalhe(id: string) {
-  return useSuspenseQuery({ queryKey: clientesKeys.detail(id), queryFn: () => buscarClientePorId(id) });
+  return useQuery({ queryKey: clientesKeys.detail(id), queryFn: () => buscarClientePorId(id) });
 }
 
 export function useCriarCliente() {
