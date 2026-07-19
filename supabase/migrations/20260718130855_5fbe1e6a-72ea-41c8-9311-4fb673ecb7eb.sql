@@ -124,4 +124,32 @@ CROSS JOIN public.commissions c
 GROUP BY c.owner_id, m.mes
 ORDER BY m.mes DESC;
 
+GRANT SELECT ON public.v_fluxo_mensal TO authenticated;-- Views financeiras
+CREATE OR REPLACE VIEW public.v_financeiro_resumo WITH (security_invoker = true) AS
+SELECT
+  owner_id,
+  COALESCE(SUM(commission_value) FILTER (WHERE status IN ('prevista','atrasada') AND deleted_at IS NULL), 0) AS previsto_total,
+  COALESCE(SUM(commission_value) FILTER (WHERE status = 'recebida' AND deleted_at IS NULL), 0)              AS recebido_total,
+  COALESCE(SUM(commission_value) FILTER (WHERE status = 'atrasada' AND deleted_at IS NULL), 0)              AS atrasado_total,
+  COALESCE(SUM(commission_value) FILTER (WHERE status = 'recebida' AND received_date >= date_trunc('month', CURRENT_DATE) AND deleted_at IS NULL), 0) AS recebido_mes_atual,
+  COALESCE(SUM(commission_value) FILTER (WHERE status = 'prevista' AND expected_date >= date_trunc('month', CURRENT_DATE) AND deleted_at IS NULL), 0)  AS previsto_mes_atual,
+  COUNT(*) FILTER (WHERE status = 'recebida' AND deleted_at IS NULL) AS qtd_recebidas,
+  COUNT(*) FILTER (WHERE status = 'prevista' AND deleted_at IS NULL) AS qtd_previstas
+FROM public.commissions
+GROUP BY owner_id;
+
+GRANT SELECT ON public.v_financeiro_resumo TO authenticated;
+
+CREATE OR REPLACE VIEW public.v_fluxo_mensal WITH (security_invoker = true) AS
+SELECT
+  owner_id,
+  TO_CHAR(DATE_TRUNC('month', COALESCE(received_date, expected_date)), 'YYYY-MM') AS mes,
+  COALESCE(SUM(commission_value) FILTER (WHERE status = 'recebida'), 0)  AS realizado,
+  COALESCE(SUM(commission_value) FILTER (WHERE status != 'recebida'), 0) AS previsto
+FROM public.commissions
+WHERE deleted_at IS NULL
+  AND COALESCE(received_date, expected_date) >= (CURRENT_DATE - INTERVAL '12 months')
+GROUP BY owner_id, DATE_TRUNC('month', COALESCE(received_date, expected_date))
+ORDER BY mes DESC;
+
 GRANT SELECT ON public.v_fluxo_mensal TO authenticated;
