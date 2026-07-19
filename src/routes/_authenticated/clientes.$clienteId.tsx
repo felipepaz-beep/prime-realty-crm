@@ -142,7 +142,7 @@ function ClienteDetalhePage() {
         </TabsContent>
 
         <TabsContent value="documentos" className="flex-1 overflow-auto mt-0">
-          <div className="p-6 max-w-4xl"><ClienteDocumentos clienteId={clienteId} /></div>
+          <div className="p-6 max-w-4xl"><ClienteLinks clienteId={clienteId} /></div>
         </TabsContent>
 
         <TabsContent value="timeline" className="flex-1 overflow-auto mt-0">
