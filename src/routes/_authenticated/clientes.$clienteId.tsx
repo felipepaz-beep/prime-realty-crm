@@ -50,10 +50,19 @@ const TAB_CLASS = 'rounded-none border-b-2 border-transparent data-[state=active
 function ClienteDetalhePage() {
   const { clienteId } = Route.useParams();
   const navigate = useNavigate();
-  const { data: cliente } = useClienteDetalhe(clienteId);
+  const { data: cliente, isLoading } = useClienteDetalhe(clienteId);
   const atualizar = useAtualizarCliente(clienteId);
   const remover = useRemoverCliente();
   const [editando, setEditando] = useState(false);
+
+  if (isLoading || !cliente) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-sm text-muted-foreground">Carregando...</span>
+      </div>
+    );
+  }
 
   const handleAtualizar = async (values: ClienteFormValues) => {
     const camposAlterados = detectarCamposAlterados(cliente, values);
