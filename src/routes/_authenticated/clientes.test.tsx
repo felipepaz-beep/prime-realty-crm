@@ -112,17 +112,19 @@ describe('Clientes — navegação por linha da tabela', () => {
     const user = userEvent.setup();
     const { router } = renderApp();
 
-    const linha = await screen.findByText('Bruno Lima');
-    const row = linha.closest('tr')!;
-    const cellLinks = within(row).getAllByRole('link');
-
-    for (let i = 0; i < cellLinks.length; i++) {
-      // reset a cada iteração
+    // 6 células linkadas por linha
+    const cellCount = 6;
+    for (let i = 0; i < cellCount; i++) {
       await router.navigate({ to: '/clientes' });
+      const linha = await screen.findByText('Bruno Lima');
+      const row = linha.closest('tr')!;
+      const cellLinks = within(row).getAllByRole('link');
+      expect(cellLinks).toHaveLength(cellCount);
       await user.click(cellLinks[i]);
       expect(router.state.location.pathname).toBe('/clientes/cli-2');
     }
   });
+
 
   it('clicar em "Remover" NÃO navega para a página de detalhe', async () => {
     const user = userEvent.setup();
