@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useClienteDetalhe, useAtualizarCliente, useRemoverCliente } from '@/features/clientes/hooks/use-clientes';
 import { ClienteForm } from '@/features/clientes/components/cliente-form';
 import { ClienteTimeline } from '@/features/clientes/components/cliente-timeline';
-import { ClienteDocumentos } from '@/features/documentos/components/cliente-documentos';
+import { ClienteLinks } from '@/features/clientes/components/cliente-links';
 import { StatusBadge, EtapaFunilBadge, PrioridadeBadge, TemperaturaBadge } from '@/features/clientes/components/cliente-badge';
 import { TimelineService } from '@/features/clientes/services/timeline.service';
 import type { ClienteFormValues } from '@/features/clientes/schemas';
