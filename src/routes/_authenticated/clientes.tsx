@@ -126,8 +126,17 @@ function ClientesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {clientes.map((c) => (
-                <TableRow key={c.id} className="cursor-pointer hover:bg-muted/40" onClick={() => navigate({ to: '/clientes/$clienteId', params: { clienteId: c.id } })}>
+              {clientes.map((c) => {
+                const abrir = () => navigate({ to: '/clientes/$clienteId', params: { clienteId: c.id } });
+                return (
+                <TableRow
+                  key={c.id}
+                  className="cursor-pointer hover:bg-muted/40 select-none"
+                  onClick={abrir}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(); } }}
+                >
                   <TableCell className="font-medium">{c.nome}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {c.whatsapp || c.telefone || c.email || '—'}
@@ -147,7 +156,8 @@ function ClientesPage() {
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         )}
