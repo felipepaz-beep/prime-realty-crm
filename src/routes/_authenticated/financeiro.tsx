@@ -365,6 +365,13 @@ function Comissoes() {
                   )}
                   <Button
                     size="sm"
+                    variant="outline"
+                    onClick={() => setEditando(c)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
                     variant="ghost"
                     onClick={() => {
                       if (confirm('Remover esta comissão?')) remover.mutate(c.id);
@@ -389,6 +396,22 @@ function Comissoes() {
             onCancel={() => setCriando(false)}
             isLoading={criar.isPending}
           />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editando} onOpenChange={(o) => !o && setEditando(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar comissão</DialogTitle>
+          </DialogHeader>
+          {editando && (
+            <CommissionForm
+              onSubmit={handleEditar}
+              onCancel={() => setEditando(null)}
+              isLoading={atualizar.isPending}
+              defaultValues={editando}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>
