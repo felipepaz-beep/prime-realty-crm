@@ -1,9 +1,39 @@
 import { supabase } from '@/integrations/supabase/client';
 import { TimelineService } from '@/features/clientes/services/timeline.service';
+import { openAIComplete } from '@/lib/ai.functions';
 import type { AIAction, AICategory, AIContext, AIMessage, AIProvider, AIProviderName, AIRequest, AIResponse, AIRouterConfig, AIUsageLog, AIUsageSummary } from '../types';
 import { DEFAULT_ROUTER_CONFIG } from '../types';
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+class OpenAIServerProvider implements AIProvider {
+  name: AIProviderName = 'openai';
+  models = ['gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo'];
+  defaultModel = 'gpt-4o-mini';
+  async complete(request: AIRequest): Promise<AIResponse> {
+    const result = await openAIComplete({
+      data: {
+        messages: request.messages.map((m) => ({ role: m.role, content: m.content })),
+        model: this.defaultModel,
+        temperature: request.temperature,
+        maxTokens: request.maxTokens,
+      },
+    });
+    return {
+      content: result.content,
+      provider: 'openai',
+      model: result.model,
+      promptTokens: result.promptTokens,
+      outputTokens: result.outputTokens,
+      totalTokens: result.totalTokens,
+      durationMs: result.durationMs,
+      costUsd: 0,
+      fromCache: false,
+      fromFallback: false,
+    };
+  }
+  async isAvailable(): Promise<boolean> { return true; }
+  estimateCost(_tokens: number): number { return 0; }
+}
+
 
 class StubAIProvider implements AIProvider {
   name: AIProviderName; models: string[]; defaultModel: string;
