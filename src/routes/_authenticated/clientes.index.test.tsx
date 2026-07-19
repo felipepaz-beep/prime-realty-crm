@@ -56,7 +56,7 @@ vi.mock('@/features/clientes/components/cliente-form', () => ({
 }));
 
 // Import the route AFTER mocks so its module graph gets the mocked hooks
-import { Route as ClientesRoute } from '@/routes/_authenticated/clientes';
+import { Route as ClientesRoute } from '@/routes/_authenticated/clientes.index';
 
 function buildRouter() {
   const rootRoute = createRootRoute({ component: () => <Outlet /> });

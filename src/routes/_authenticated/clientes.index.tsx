@@ -15,7 +15,7 @@ import { StatusBadge, EtapaFunilBadge, PrioridadeBadge, TemperaturaBadge } from 
 import type { ClienteFormValues } from '@/features/clientes/schemas';
 import type { ClienteFiltros } from '@/features/clientes/types';
 
-export const Route = createFileRoute('/_authenticated/clientes')({
+export const Route = createFileRoute('/_authenticated/clientes/')({
   head: () => ({
     meta: [
       { title: 'Clientes — Corretor CRM' },
