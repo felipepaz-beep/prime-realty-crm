@@ -4,6 +4,58 @@ import { openAIComplete } from '@/lib/ai.functions';
 import type { AIAction, AICategory, AIContext, AIMessage, AIProvider, AIProviderName, AIRequest, AIResponse, AIRouterConfig, AIUsageLog, AIUsageSummary } from '../types';
 import { DEFAULT_ROUTER_CONFIG } from '../types';
 
+// OPENAI_API_KEY só existe no servidor. No bundle do cliente é sempre undefined,
+// então a instância real (OpenAIProvider) nunca é criada no browser — cai no
+// OpenAIServerProvider e as chamadas reais passam pela server function `openAIComplete`.
+const OPENAI_API_KEY: string | undefined =
+  typeof process !== 'undefined' ? process.env?.OPENAI_API_KEY : undefined;
+
+class OpenAIProvider implements AIProvider {
+  name: AIProviderName = 'openai';
+  models = ['gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo'];
+  defaultModel = 'gpt-4o-mini';
+  private apiKey: string;
+  constructor(apiKey: string) { this.apiKey = apiKey; }
+  async complete(request: AIRequest): Promise<AIResponse> {
+    const start = Date.now();
+    const model = this.defaultModel;
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: request.messages.map((m) => ({ role: m.role, content: m.content })),
+        temperature: request.temperature ?? 0.7,
+        max_tokens: request.maxTokens ?? 1024,
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`OpenAI ${res.status}: ${errText}`);
+    }
+    const json = await res.json();
+    const durationMs = Date.now() - start;
+    const usage = json.usage ?? {};
+    return {
+      content: json.choices?.[0]?.message?.content ?? '',
+      provider: 'openai',
+      model: json.model ?? model,
+      promptTokens: Number(usage.prompt_tokens ?? 0),
+      outputTokens: Number(usage.completion_tokens ?? 0),
+      totalTokens: Number(usage.total_tokens ?? 0),
+      durationMs,
+      costUsd: 0,
+      fromCache: false,
+      fromFallback: false,
+    };
+  }
+  async isAvailable(): Promise<boolean> { return Boolean(this.apiKey); }
+  estimateCost(_tokens: number): number { return 0; }
+}
+
 class OpenAIServerProvider implements AIProvider {
   name: AIProviderName = 'openai';
   models = ['gpt-4o', 'gpt-4o-mini', 'gpt-3.5-turbo'];
@@ -56,7 +108,7 @@ class StubAIProvider implements AIProvider {
 }
 
 const AI_PROVIDERS: Record<AIProviderName, AIProvider> = {
-  openai: new OpenAIServerProvider(),
+  openai: OPENAI_API_KEY ? new OpenAIProvider(OPENAI_API_KEY) : new OpenAIServerProvider(),
   gemini: new StubAIProvider('gemini', ['gemini-1.5-pro','gemini-1.5-flash'], 'gemini-1.5-pro'),
   claude: new StubAIProvider('claude', ['claude-3-5-sonnet-20241022','claude-3-haiku-20240307'], 'claude-3-5-sonnet-20241022'),
   stub:   new StubAIProvider('stub', ['stub'], 'stub'),
