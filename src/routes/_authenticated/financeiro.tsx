@@ -10,6 +10,7 @@ import {
   Target,
   Plus,
   CheckCircle,
+  Pencil,
   XCircle,
   BarChart3,
   Wallet,
@@ -58,6 +59,7 @@ import {
   useFluxoMensal,
   useCommissions,
   useCriarComissao,
+  useAtualizarComissao,
   useMarcarRecebida,
   useRemoverComissao,
   useGoalMes,
@@ -68,6 +70,7 @@ import {
   COMMISSION_STATUS_LABELS,
   COMMISSION_STATUS_COLORS,
   PAYMENT_METHOD_LABELS,
+  type Commission,
   type CommissionFiltros,
   type CommissionStatus,
 } from '@/features/financeiro/types';
@@ -241,14 +244,22 @@ function DashboardFinanceiro() {
 function Comissoes() {
   const [filtros, setFiltros] = useState<CommissionFiltros>({});
   const [criando, setCriando] = useState(false);
+  const [editando, setEditando] = useState<Commission | null>(null);
   const { data, isLoading } = useCommissions(filtros);
   const criar = useCriarComissao();
+  const atualizar = useAtualizarComissao();
   const marcar = useMarcarRecebida();
   const remover = useRemoverComissao();
 
   const handleCriar = async (values: CommissionFormValues) => {
     await criar.mutateAsync(values);
     setCriando(false);
+  };
+
+  const handleEditar = async (values: CommissionFormValues) => {
+    if (!editando) return;
+    await atualizar.mutateAsync({ id: editando.id, payload: values });
+    setEditando(null);
   };
 
   return (
@@ -354,6 +365,13 @@ function Comissoes() {
                   )}
                   <Button
                     size="sm"
+                    variant="outline"
+                    onClick={() => setEditando(c)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
                     variant="ghost"
                     onClick={() => {
                       if (confirm('Remover esta comissão?')) remover.mutate(c.id);
@@ -378,6 +396,22 @@ function Comissoes() {
             onCancel={() => setCriando(false)}
             isLoading={criar.isPending}
           />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editando} onOpenChange={(o) => !o && setEditando(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar comissão</DialogTitle>
+          </DialogHeader>
+          {editando && (
+            <CommissionForm
+              onSubmit={handleEditar}
+              onCancel={() => setEditando(null)}
+              isLoading={atualizar.isPending}
+              defaultValues={editando}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>
