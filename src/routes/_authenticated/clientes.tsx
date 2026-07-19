@@ -127,24 +127,38 @@ function ClientesPage() {
             </TableHeader>
             <TableBody>
               {clientes.map((c) => {
-                const abrir = () => navigate({ to: '/clientes/$clienteId', params: { clienteId: c.id } });
+                const to = '/clientes/$clienteId' as const;
+                const params = { clienteId: c.id };
+                const cellLinkCls = 'block w-full h-full py-1 -my-1 text-inherit no-underline';
+                const abrir = () => navigate({ to, params });
                 return (
                 <TableRow
                   key={c.id}
                   className="cursor-pointer hover:bg-muted/40 select-none"
-                  onClick={abrir}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(); } }}
                 >
-                  <TableCell className="font-medium">{c.nome}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {c.whatsapp || c.telefone || c.email || '—'}
+                  <TableCell className="font-medium p-0">
+                    <Link to={to} params={params} className={cellLinkCls + ' px-4'}>{c.nome}</Link>
                   </TableCell>
-                  <TableCell><EtapaFunilBadge value={c.etapa_funil} /></TableCell>
-                  <TableCell><StatusBadge value={c.status} /></TableCell>
-                  <TableCell><PrioridadeBadge value={c.prioridade} /></TableCell>
-                  <TableCell><TemperaturaBadge value={c.temperatura} /></TableCell>
+                  <TableCell className="text-sm text-muted-foreground p-0">
+                    <Link to={to} params={params} className={cellLinkCls + ' px-4'}>
+                      {c.whatsapp || c.telefone || c.email || '—'}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="p-0">
+                    <Link to={to} params={params} className={cellLinkCls + ' px-4'}><EtapaFunilBadge value={c.etapa_funil} /></Link>
+                  </TableCell>
+                  <TableCell className="p-0">
+                    <Link to={to} params={params} className={cellLinkCls + ' px-4'}><StatusBadge value={c.status} /></Link>
+                  </TableCell>
+                  <TableCell className="p-0">
+                    <Link to={to} params={params} className={cellLinkCls + ' px-4'}><PrioridadeBadge value={c.prioridade} /></Link>
+                  </TableCell>
+                  <TableCell className="p-0">
+                    <Link to={to} params={params} className={cellLinkCls + ' px-4'}><TemperaturaBadge value={c.temperatura} /></Link>
+                  </TableCell>
                   <TableCell>
                     <Button
                       size="sm"
