@@ -10,6 +10,7 @@ import {
   Target,
   Plus,
   CheckCircle,
+  Pencil,
   XCircle,
   BarChart3,
   Wallet,
