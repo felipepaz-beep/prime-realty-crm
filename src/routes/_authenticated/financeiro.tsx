@@ -244,14 +244,22 @@ function DashboardFinanceiro() {
 function Comissoes() {
   const [filtros, setFiltros] = useState<CommissionFiltros>({});
   const [criando, setCriando] = useState(false);
+  const [editando, setEditando] = useState<Commission | null>(null);
   const { data, isLoading } = useCommissions(filtros);
   const criar = useCriarComissao();
+  const atualizar = useAtualizarComissao();
   const marcar = useMarcarRecebida();
   const remover = useRemoverComissao();
 
   const handleCriar = async (values: CommissionFormValues) => {
     await criar.mutateAsync(values);
     setCriando(false);
+  };
+
+  const handleEditar = async (values: CommissionFormValues) => {
+    if (!editando) return;
+    await atualizar.mutateAsync({ id: editando.id, payload: values });
+    setEditando(null);
   };
 
   return (
