@@ -87,8 +87,8 @@ function renderApp() {
     router,
     ...render(
       <QueryClientProvider client={qc}>
-        {/* @ts-expect-error test router type */}
         <RouterProvider router={router} />
+
       </QueryClientProvider>,
     ),
   };
