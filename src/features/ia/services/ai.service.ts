@@ -3,6 +3,8 @@ import { TimelineService } from '@/features/clientes/services/timeline.service';
 import type { AIAction, AICategory, AIContext, AIMessage, AIProvider, AIProviderName, AIRequest, AIResponse, AIRouterConfig, AIUsageLog, AIUsageSummary } from '../types';
 import { DEFAULT_ROUTER_CONFIG } from '../types';
 
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
 class StubAIProvider implements AIProvider {
   name: AIProviderName; models: string[]; defaultModel: string;
   constructor(name: AIProviderName, models: string[], defaultModel: string) { this.name = name; this.models = models; this.defaultModel = defaultModel; }
