@@ -1,11 +1,26 @@
 import { supabase } from '@/integrations/supabase/client';
 import { TimelineService } from '@/features/clientes/services/timeline.service';
-import type { Conversation, ConversationFiltros, ConversationInsert, ConversationPaginadas, Message, MessageInsert } from '../types';
-import { CHANNEL_PROVIDERS } from '../types';
+import { IntegrationService } from '@/features/configuracoes/services/settings.service';
+import { EvolutionApiProvider } from './evolution-api.provider';
+import type { EvolutionApiConfig } from './evolution-api.provider';
+import type { Conversation, ConversationChannel, ConversationFiltros, ConversationInsert, ConversationPaginadas, Message, MessageInsert, CommunicationProvider } from '../types';
+import { StubCommunicationProvider } from '../types';
 
 const CONV_TABLE = 'conversations';
 const MSG_TABLE = 'messages';
 const PAGE_SIZE = 30;
+
+async function getProvider(channel: ConversationChannel): Promise<CommunicationProvider> {
+  if (channel === 'whatsapp') {
+    try {
+      const integration = await IntegrationService.buscarProvider('whatsapp');
+      if (integration?.status === 'connected' && integration.configuration?.base_url) {
+        return new EvolutionApiProvider(integration.configuration as unknown as EvolutionApiConfig);
+      }
+    } catch { /* fall through to stub */ }
+  }
+  return new StubCommunicationProvider(channel);
+}
 
 export async function listarConversas(filtros: ConversationFiltros = {}): Promise<ConversationPaginadas> {
   const { channel, status, busca, pagina = 1, porPagina = 20 } = filtros;
@@ -87,7 +102,7 @@ export async function enviarMensagem(payload: MessageInsert & { client_id: strin
   const msg = data as Message;
   try {
     const conversa = await buscarConversaPorId(payload.conversation_id);
-    const provider = CHANNEL_PROVIDERS[conversa.channel];
+    const provider = await getProvider(conversa.channel);
     const contactId = provider.getContactId(conversa.client ?? null);
     if (contactId && (await provider.isConnected())) {
       const externalId = msg.type === 'text' && msg.content

@@ -14,7 +14,8 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useSettings, useSalvarSettings, useIntegrations, useDesconectarIntegration } from '@/features/configuracoes/hooks/use-settings';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { useSettings, useSalvarSettings, useIntegrations, useDesconectarIntegration, useSalvarIntegration } from '@/features/configuracoes/hooks/use-settings';
 import { DEFAULT_AGENDA_SETTINGS, DEFAULT_FINANCEIRO_SETTINGS, DEFAULT_IA_SETTINGS, DEFAULT_NOTIFICACOES_SETTINGS, INTEGRATION_DESCRIPTIONS, INTEGRATION_LABELS, INTEGRATION_STATUS_CLASSES, INTEGRATION_STATUS_LABELS } from '@/features/configuracoes/types';
 import type { AgendaSettings, FinanceiroSettings, IASettings, IntegrationProvider, IntegrationStatus, NotificacoesSettings } from '@/features/configuracoes/types';
 
@@ -23,7 +24,7 @@ export const Route = createFileRoute('/_authenticated/configuracoes')({
   component: ConfiguracoesPage,
 });
 
-function IntegrationCard({ provider, status, onDesconectar }: { provider: IntegrationProvider; status: IntegrationStatus; onDesconectar: () => void }) {
+function IntegrationCard({ provider, status, onDesconectar, onConectar }: { provider: IntegrationProvider; status: IntegrationStatus; onDesconectar: () => void; onConectar?: () => void }) {
   const isConnected = status === 'connected';
   return (
     <div className="flex items-center gap-4 py-3 border-b last:border-0">
@@ -37,6 +38,8 @@ function IntegrationCard({ provider, status, onDesconectar }: { provider: Integr
       <div className="shrink-0">
         {isConnected ? (
           <Button size="sm" variant="outline" className="h-7 text-xs text-destructive border-destructive/30 hover:bg-destructive/10" onClick={onDesconectar}>Desconectar</Button>
+        ) : onConectar ? (
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onConectar}>Conectar <ChevronRight className="ml-1 h-3 w-3" /></Button>
         ) : (
           <Button size="sm" variant="outline" className="h-7 text-xs" disabled>Conectar <ChevronRight className="ml-1 h-3 w-3" /></Button>
         )}
@@ -182,14 +185,46 @@ function NotificacoesConfig() {
   );
 }
 
+const EMPTY_WP_FORM = { base_url: '', api_key: '', instance_name: '' };
+
 function IntegracoesConfig() {
   const { data: integrations, isLoading } = useIntegrations();
   const desconectar = useDesconectarIntegration();
+  const salvar = useSalvarIntegration();
+  const [wpDialog, setWpDialog] = useState(false);
+  const [wpForm, setWpForm] = useState(EMPTY_WP_FORM);
   const AI_PROVIDERS: IntegrationProvider[] = ['openai','gemini','claude'];
   const COMUNICACAO: IntegrationProvider[] = ['whatsapp','instagram','telegram','messenger'];
   const PRODUTIVIDADE: IntegrationProvider[] = ['google_calendar','google_drive'];
   const getStatus = (p: IntegrationProvider): IntegrationStatus => integrations?.find((i) => i.provider === p)?.status ?? 'disconnected';
-  const handleDesconectar = async (p: IntegrationProvider) => { if (!confirm(`Desconectar ${INTEGRATION_LABELS[p]}?`)) return; await desconectar.mutateAsync(p); toast.success('Integração desconectada.'); };
+
+  const handleDesconectar = async (p: IntegrationProvider) => {
+    if (!confirm(`Desconectar ${INTEGRATION_LABELS[p]}?`)) return;
+    await desconectar.mutateAsync(p);
+    toast.success('Integração desconectada.');
+  };
+
+  const handleAbrirWp = () => {
+    const existing = integrations?.find((i) => i.provider === 'whatsapp');
+    const cfg = existing?.configuration as { base_url?: string; api_key?: string; instance_name?: string } | undefined;
+    setWpForm({
+      base_url: cfg?.base_url ?? '',
+      api_key: cfg?.api_key ?? '',
+      instance_name: cfg?.instance_name ?? '',
+    });
+    setWpDialog(true);
+  };
+
+  const handleSalvarWp = async () => {
+    if (!wpForm.base_url || !wpForm.api_key || !wpForm.instance_name) {
+      toast.error('Preencha todos os campos obrigatórios.');
+      return;
+    }
+    await salvar.mutateAsync({ provider: 'whatsapp', status: 'connected', config: wpForm });
+    toast.success('WhatsApp configurado com sucesso!');
+    setWpDialog(false);
+  };
+
   if (isLoading) return <div className="space-y-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>;
   return (
     <div className="space-y-6 max-w-2xl">
@@ -202,12 +237,61 @@ function IntegracoesConfig() {
       </Card>
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><MessageCircle className="h-4 w-4" />Comunicação</CardTitle><CardDescription className="text-xs">Conecte canais de mensagem para a Central de Comunicação</CardDescription></CardHeader>
-        <CardContent>{COMUNICACAO.map((p) => <IntegrationCard key={p} provider={p} status={getStatus(p)} onDesconectar={() => handleDesconectar(p)} />)}</CardContent>
+        <CardContent>
+          {COMUNICACAO.map((p) => (
+            <IntegrationCard
+              key={p}
+              provider={p}
+              status={getStatus(p)}
+              onDesconectar={() => handleDesconectar(p)}
+              onConectar={p === 'whatsapp' ? handleAbrirWp : undefined}
+            />
+          ))}
+        </CardContent>
       </Card>
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Zap className="h-4 w-4" />Produtividade</CardTitle><CardDescription className="text-xs">Sincronize com ferramentas do Google</CardDescription></CardHeader>
         <CardContent>{PRODUTIVIDADE.map((p) => <IntegrationCard key={p} provider={p} status={getStatus(p)} onDesconectar={() => handleDesconectar(p)} />)}</CardContent>
       </Card>
+
+      <Dialog open={wpDialog} onOpenChange={setWpDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Configurar WhatsApp — Evolution API</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-xs">URL base da Evolution API *</Label>
+              <Input className="mt-1" placeholder="https://api.seuservidor.com" value={wpForm.base_url} onChange={(e) => setWpForm((p) => ({ ...p, base_url: e.target.value }))} />
+              <p className="text-xs text-muted-foreground mt-1">Endereço do servidor Evolution API (sem barra no final)</p>
+            </div>
+            <div>
+              <Label className="text-xs">API Key *</Label>
+              <Input className="mt-1" type="password" placeholder="••••••••••••" value={wpForm.api_key} onChange={(e) => setWpForm((p) => ({ ...p, api_key: e.target.value }))} />
+              <p className="text-xs text-muted-foreground mt-1">Chave de autenticação da sua instância Evolution</p>
+            </div>
+            <div>
+              <Label className="text-xs">Nome da instância *</Label>
+              <Input className="mt-1" placeholder="minha-instancia" value={wpForm.instance_name} onChange={(e) => setWpForm((p) => ({ ...p, instance_name: e.target.value }))} />
+              <p className="text-xs text-muted-foreground mt-1">Nome configurado na Evolution API</p>
+            </div>
+            <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
+              <p className="font-medium">Para receber mensagens:</p>
+              <p>Configure o webhook da Evolution API para:</p>
+              <code className="block bg-background rounded px-2 py-1 font-mono text-[11px] break-all">
+                POST {'<sua-url-supabase>'}/functions/v1/evolution-webhook
+              </code>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWpDialog(false)}>Cancelar</Button>
+            <Button onClick={handleSalvarWp} disabled={salvar.isPending}>
+              {salvar.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Salvar e conectar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
