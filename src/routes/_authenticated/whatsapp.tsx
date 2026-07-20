@@ -278,10 +278,10 @@ function ChatWindow({ conversaId, canalConectado, onFechar }: { conversaId: stri
 function WhatsAppPage() {
   const [conversaAtiva, setConversaAtiva] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
-  const [canalFiltro, setCanalFiltro] = useState<ConversationChannel | ''>('');
-  const [statusFiltro, setStatusFiltro] = useState<'open' | 'closed' | ''>('open');
+  const [canalFiltro, setCanalFiltro] = useState<ConversationChannel | 'all'>('all');
+  const [statusFiltro, setStatusFiltro] = useState<'open' | 'closed' | 'waiting' | 'all'>('open');
 
-  const filtros: ConversationFiltros = { busca: busca || undefined, channel: canalFiltro || undefined, status: statusFiltro || undefined, porPagina: 50 };
+  const filtros: ConversationFiltros = { busca: busca || undefined, channel: canalFiltro === 'all' ? undefined : canalFiltro, status: statusFiltro === 'all' ? undefined : statusFiltro as 'open' | 'closed', porPagina: 50 };
   const { data, isLoading } = useConversas(filtros);
   const { data: whatsappConectado = false } = useWhatsAppConectado();
   const conversas = data?.data ?? [];
@@ -316,7 +316,7 @@ function WhatsAppPage() {
                   <Select value={statusFiltro} onValueChange={(v) => setStatusFiltro(v as typeof statusFiltro)}>
                     <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="Status" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todas</SelectItem>
+                      <SelectItem value="all">Todas</SelectItem>
                       <SelectItem value="open">Abertas</SelectItem>
                       <SelectItem value="closed">Encerradas</SelectItem>
                       <SelectItem value="waiting">Aguardando</SelectItem>
@@ -325,7 +325,7 @@ function WhatsAppPage() {
                   <Select value={canalFiltro} onValueChange={(v) => setCanalFiltro(v as typeof canalFiltro)}>
                     <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="Canal" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos</SelectItem>
+                      <SelectItem value="all">Todos</SelectItem>
                       {CONVERSATION_CHANNELS.map((c) => <SelectItem key={c} value={c}>{CHANNEL_LABELS[c]}</SelectItem>)}
                     </SelectContent>
                   </Select>
