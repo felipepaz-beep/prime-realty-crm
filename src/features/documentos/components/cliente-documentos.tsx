@@ -248,10 +248,10 @@ export function ClienteDocumentos({ clienteId }: { clienteId: string }) {
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Buscar documento..." className="pl-9 h-8 text-sm" value={busca} onChange={(e) => setBusca(e.target.value)} />
         </div>
-        <Select value={categoriaFiltro} onValueChange={(v) => setCategoriaFiltro(v as DocumentCategory | '')}>
+        <Select value={categoriaFiltro || 'all'} onValueChange={(v) => setCategoriaFiltro(v === 'all' ? '' : v as DocumentCategory)}>
           <SelectTrigger className="h-8 w-48 text-sm"><SelectValue placeholder="Todas as categorias" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Todas as categorias</SelectItem>
+            <SelectItem value="all">Todas as categorias</SelectItem>
             {DOCUMENT_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{DOCUMENT_CATEGORY_LABELS[c]}</SelectItem>)}
           </SelectContent>
         </Select>

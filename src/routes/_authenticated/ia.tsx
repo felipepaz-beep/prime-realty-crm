@@ -128,9 +128,9 @@ function BibliotecaPrompts() {
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Buscar prompt..." className="pl-9 h-8 text-sm" value={busca} onChange={(e) => setBusca(e.target.value)} />
         </div>
-        <Select value={categoriaFiltro} onValueChange={(v) => setCategoriaFiltro(v as AICategory | '')}>
+        <Select value={categoriaFiltro || 'all'} onValueChange={(v) => setCategoriaFiltro(v === 'all' ? '' : v as AICategory)}>
           <SelectTrigger className="h-8 w-40 text-sm"><SelectValue placeholder="Categoria" /></SelectTrigger>
-          <SelectContent><SelectItem value="">Todas</SelectItem>{AI_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{AI_CATEGORY_LABELS[c]}</SelectItem>)}</SelectContent>
+          <SelectContent><SelectItem value="all">Todas</SelectItem>{AI_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{AI_CATEGORY_LABELS[c]}</SelectItem>)}</SelectContent>
         </Select>
         <Button size="sm" className="h-8 ml-auto gap-1.5" onClick={() => setEditando({ category: 'geral' })}><Plus className="h-4 w-4" />Novo prompt</Button>
       </div>
