@@ -10,6 +10,7 @@ export const analyticsKeys = {
   documentos: () => [...analyticsKeys.all, 'documentos'] as const,
   conversas: () => [...analyticsKeys.all, 'conversas'] as const,
   timeline: (meses: number) => [...analyticsKeys.all, 'timeline', meses] as const,
+  financeiro: () => [...analyticsKeys.all, 'financeiro'] as const,
 };
 
 export function useAnalyticsKPIs() {
@@ -32,4 +33,7 @@ export function useConversasAnalytics() {
 }
 export function useTimelineEventos(meses = 6) {
   return useQuery({ queryKey: analyticsKeys.timeline(meses), queryFn: () => AnalyticsService.getTimelineEventos(meses), staleTime: 120_000 });
+}
+export function useFinanceiroRelatorio() {
+  return useQuery({ queryKey: analyticsKeys.financeiro(), queryFn: AnalyticsService.getFinanceiro.bind(AnalyticsService), staleTime: 60_000 });
 }

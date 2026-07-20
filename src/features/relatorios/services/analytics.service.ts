@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { AnalyticsKPIs, AtividadeAnalytics, ConversaAnalytics, DocumentoAnalytics, FunilConversao, OrigemLead, TimelineEvento } from '../types';
+import type { Commission, FinanceiroResumo } from '@/features/financeiro/types';
 
 const db = supabase as any;
 
@@ -42,6 +43,16 @@ export const AnalyticsService = {
       .gte('mes', since.toISOString().split('T')[0]);
     if (error) throw error;
     return ((data as unknown) ?? []) as TimelineEvento[];
+  },
+  async getFinanceiro(): Promise<{ comissoes: Commission[]; resumo: FinanceiroResumo | null }> {
+    const [comissoesResult, resumoResult] = await Promise.allSettled([
+      supabase.from('commissions').select('*, client:clients(nome)').order('expected_date', { ascending: false }).limit(50),
+      supabase.from('v_financeiro_resumo').select('*').maybeSingle(),
+    ]);
+    return {
+      comissoes: comissoesResult.status === 'fulfilled' ? ((comissoesResult.value.data ?? []) as unknown as Commission[]) : [],
+      resumo: resumoResult.status === 'fulfilled' ? ((resumoResult.value.data as unknown) as FinanceiroResumo | null) : null,
+    };
   },
 };
 

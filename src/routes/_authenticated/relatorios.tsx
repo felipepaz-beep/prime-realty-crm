@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useCallback } from 'react';
-import { BarChart3, TrendingUp, Users, Target, Calendar, FileText, MessageCircle, Sparkles, Download, Printer, ArrowUp, ArrowDown, LayoutDashboard } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, Target, Calendar, FileText, MessageCircle, Sparkles, Download, Printer, ArrowUp, ArrowDown, LayoutDashboard, DollarSign } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -10,10 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { useAnalyticsKPIs, useFunilConversao, useOrigemLeads, useAtividadesAnalytics, useDocumentosAnalytics, useConversasAnalytics } from '@/features/relatorios/hooks/use-analytics';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useAnalyticsKPIs, useFunilConversao, useOrigemLeads, useAtividadesAnalytics, useDocumentosAnalytics, useConversasAnalytics, useFinanceiroRelatorio } from '@/features/relatorios/hooks/use-analytics';
 import { ReportsService, MetricsService } from '@/features/relatorios/services/analytics.service';
 import { ETAPA_FUNIL_LABELS } from '@/features/clientes/constants';
 import type { ClienteEtapaFunil } from '@/features/clientes/types';
+import { COMMISSION_STATUS_COLORS, COMMISSION_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@/features/financeiro/types';
 
 export const Route = createFileRoute('/_authenticated/relatorios')({
   head: () => ({ meta: [{ title: 'Relatórios — Corretor CRM' }, { name: 'robots', content: 'noindex' }] }),
@@ -80,9 +82,12 @@ function RelatorioExecutivo() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-muted-foreground">Visão geral do CRM</p>
-        <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={() => ReportsService.print()}>
-          <Printer className="h-3.5 w-3.5" /> Imprimir
-        </Button>
+        <div className="flex items-center gap-1.5">
+          {kpis && <ExportButton data={[kpis] as unknown as Record<string, unknown>[]} filename="executivo" />}
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={() => ReportsService.print()}>
+            <Printer className="h-3.5 w-3.5" /> Imprimir
+          </Button>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {isLoading ? Array.from({ length: 8 }).map((_, i) => <KpiSkeleton key={i} />) :
@@ -235,6 +240,94 @@ function RelatorioAtividades() {
   );
 }
 
+function RelatorioFinanceiro() {
+  const { data, isLoading } = useFinanceiroRelatorio();
+  const resumo = data?.resumo;
+  const comissoes = data?.comissoes ?? [];
+  const cards = [
+    { titulo: 'Total previsto', valor: MetricsService.formatarMoeda(resumo?.previsto_total ?? 0), icon: DollarSign },
+    { titulo: 'Total recebido', valor: MetricsService.formatarMoeda(resumo?.recebido_total ?? 0), icon: DollarSign },
+    { titulo: 'Atrasado', valor: MetricsService.formatarMoeda(resumo?.atrasado_total ?? 0), icon: DollarSign, destaque: (resumo?.atrasado_total ?? 0) > 0 },
+    { titulo: 'Recebido este mês', valor: MetricsService.formatarMoeda(resumo?.recebido_mes_atual ?? 0), icon: DollarSign },
+  ];
+  const handleExport = () => {
+    const csv = ReportsService.toCSV(
+      comissoes.map((c) => ({
+        cliente: c.client?.nome ?? '—',
+        valor: c.commission_value,
+        status: COMMISSION_STATUS_LABELS[c.status],
+        previsao: c.expected_date ?? '',
+        recebimento: c.received_date ?? '',
+        forma_pagamento: c.payment_method ? PAYMENT_METHOD_LABELS[c.payment_method] : '',
+      })),
+      { cliente: 'Cliente', valor: 'Valor', status: 'Status', previsao: 'Previsão', recebimento: 'Recebimento', forma_pagamento: 'Forma de pagamento' },
+    );
+    ReportsService.downloadCSV(csv, 'financeiro');
+    toast.success('Relatório exportado como CSV!');
+  };
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-muted-foreground">Comissões e recebimentos</p>
+        {comissoes.length > 0 && (
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1.5" onClick={handleExport}>
+            <Download className="h-3.5 w-3.5" /> Exportar CSV
+          </Button>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {isLoading ? Array.from({ length: 4 }).map((_, i) => <KpiSkeleton key={i} />) :
+          cards.map(({ titulo, valor, icon, destaque }) => <KpiCard key={titulo} titulo={titulo} valor={valor} icon={icon} destaque={destaque} />)}
+      </div>
+      <Card>
+        <CardHeader className="pb-2"><CardTitle className="text-sm">Comissões recentes</CardTitle></CardHeader>
+        <CardContent>
+          {isLoading ? <Skeleton className="h-48 w-full" /> : comissoes.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">Nenhuma comissão registrada ainda.</p>
+          ) : (
+            <div className="overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Valor</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Previsão</TableHead>
+                    <TableHead>Recebimento</TableHead>
+                    <TableHead>Forma de pagamento</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {comissoes.map((c) => (
+                    <TableRow key={c.id}>
+                      <TableCell className="font-medium">{c.client?.nome ?? '—'}</TableCell>
+                      <TableCell className="tabular-nums">{MetricsService.formatarMoeda(c.commission_value)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={cn('text-xs font-normal', COMMISSION_STATUS_COLORS[c.status])}>
+                          {COMMISSION_STATUS_LABELS[c.status]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {c.expected_date ? new Date(c.expected_date).toLocaleDateString('pt-BR') : '—'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {c.received_date ? new Date(c.received_date).toLocaleDateString('pt-BR') : '—'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {c.payment_method ? PAYMENT_METHOD_LABELS[c.payment_method] : '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function RelatorioDocumentos() {
   const { data: documentos, isLoading } = useDocumentosAnalytics();
   const DOC_LABELS: Record<string, string> = { rg: 'RG', cpf: 'CPF', cnh: 'CNH', contrato: 'Contrato', proposta: 'Proposta', matricula: 'Matrícula', escritura: 'Escritura', financiamento: 'Financiamento', fotos: 'Fotos', comprovante_renda: 'Comp. Renda', comprovante_residencia: 'Comp. Residência', documento_pessoal: 'Doc. Pessoal', outros: 'Outros' };
@@ -320,6 +413,7 @@ function RelatoriosPage() {
             <TabsTrigger value="funil"       className="gap-1.5 text-xs"><TrendingUp className="h-3.5 w-3.5" />Funil</TabsTrigger>
             <TabsTrigger value="clientes"    className="gap-1.5 text-xs"><Users className="h-3.5 w-3.5" />Clientes</TabsTrigger>
             <TabsTrigger value="atividades"  className="gap-1.5 text-xs"><Calendar className="h-3.5 w-3.5" />Atividades</TabsTrigger>
+            <TabsTrigger value="financeiro"  className="gap-1.5 text-xs"><DollarSign className="h-3.5 w-3.5" />Financeiro</TabsTrigger>
             <TabsTrigger value="documentos"  className="gap-1.5 text-xs"><FileText className="h-3.5 w-3.5" />Documentos</TabsTrigger>
             <TabsTrigger value="comunicacao" className="gap-1.5 text-xs"><MessageCircle className="h-3.5 w-3.5" />Comunicação</TabsTrigger>
           </TabsList>
@@ -327,6 +421,7 @@ function RelatoriosPage() {
           <TabsContent value="funil"><RelatorioFunil /></TabsContent>
           <TabsContent value="clientes"><RelatorioClientes /></TabsContent>
           <TabsContent value="atividades"><RelatorioAtividades /></TabsContent>
+          <TabsContent value="financeiro"><RelatorioFinanceiro /></TabsContent>
           <TabsContent value="documentos"><RelatorioDocumentos /></TabsContent>
           <TabsContent value="comunicacao"><RelatorioComunicacao /></TabsContent>
         </Tabs>
