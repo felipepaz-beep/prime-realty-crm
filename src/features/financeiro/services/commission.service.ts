@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { TimelineService } from '@/features/clientes/services/timeline.service';
 import type {
   Commission,
   CommissionFiltros,
@@ -45,7 +46,11 @@ export const CommissionService = {
       .select('*, client:clients(id, nome)')
       .single();
     if (error) throw error;
-    return data as unknown as Commission;
+    const commission = data as unknown as Commission;
+    if (commission.client_id) {
+      TimelineService.vendaConcluida(commission.client_id, commission.gross_value, commission.payment_method ?? undefined);
+    }
+    return commission;
   },
 
   async atualizar(id: string, payload: CommissionUpdate): Promise<Commission> {
@@ -60,10 +65,19 @@ export const CommissionService = {
   },
 
   async marcarRecebida(id: string): Promise<Commission> {
-    return this.atualizar(id, {
+    const result = await this.atualizar(id, {
       status: 'recebida',
       received_date: new Date().toISOString().slice(0, 10),
     });
+    if (result.client_id) {
+      TimelineService.eventoCustomizado(
+        result.client_id,
+        'Comissão recebida',
+        `Valor: R$ ${result.commission_value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+        'negocio',
+      );
+    }
+    return result;
   },
 
   async remover(id: string): Promise<void> {
