@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Search, Plus, MoreHorizontal, Send, Paperclip, ArrowLeft, Check, CheckCheck, Clock, AlertCircle, MessageCircle, User, ChevronRight, Loader2 } from 'lucide-react';
+import { Search, Plus, MoreHorizontal, Send, Paperclip, ArrowLeft, Check, CheckCheck, Clock, AlertCircle, MessageCircle, User, ChevronRight, Loader2, Wifi, WifiOff } from 'lucide-react';
 import { format, isToday, isYesterday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +16,8 @@ import { Separator } from '@/components/ui/separator';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useConversas, useConversa, useMensagens, useEnviarMensagem, useEncerrarConversa, useMarcarComoLida } from '@/features/comunicacao/hooks/use-communication';
+import { supabase } from '@/integrations/supabase/client';
+import { useConversas, useConversa, useMensagens, useEnviarMensagem, useEncerrarConversa, useMarcarComoLida, useRealtimeMensagens, useRealtimeConversas } from '@/features/comunicacao/hooks/use-communication';
 import { CHANNEL_COLORS, CHANNEL_LABELS, CONVERSATION_CHANNELS, STATUS_LABELS } from '@/features/comunicacao/types';
 import { EtapaFunilBadge } from '@/features/clientes/components/cliente-badge';
 import type { Conversation, ConversationChannel, ConversationFiltros, Message, MessageStatus } from '@/features/comunicacao/types';
@@ -25,6 +27,18 @@ export const Route = createFileRoute('/_authenticated/whatsapp')({
   head: () => ({ meta: [{ title: 'Comunicação — Corretor CRM' }, { name: 'robots', content: 'noindex' }] }),
   component: WhatsAppPage,
 });
+
+function useWhatsAppConectado() {
+  return useQuery({
+    queryKey: ['comunicacao', 'whatsapp-config'],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from('integrations').select('status').eq('provider', 'whatsapp').maybeSingle();
+      return (data as { status: string } | null)?.status === 'connected';
+    },
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+}
 
 function formatarDataConversa(iso: string | null): string {
   if (!iso) return '';
@@ -137,7 +151,7 @@ function ConversationSidebar({ conversa }: { conversa: Conversation }) {
   );
 }
 
-function ChatWindow({ conversaId, onFechar }: { conversaId: string; onFechar: () => void }) {
+function ChatWindow({ conversaId, canalConectado, onFechar }: { conversaId: string; canalConectado: boolean; onFechar: () => void }) {
   const [texto, setTexto] = useState('');
   const [mostrarSidebar, setMostrarSidebar] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -148,6 +162,8 @@ function ChatWindow({ conversaId, onFechar }: { conversaId: string; onFechar: ()
   const encerrar = useEncerrarConversa();
   const marcarLida = useMarcarComoLida();
   const mensagens = data?.pages.flatMap((p) => p.messages) ?? [];
+
+  useRealtimeMensagens(conversaId);
 
   useEffect(() => { bottomRef.current?.scrollIntoView(); }, [conversaId]);
   useEffect(() => { if (conversa?.unread_count && conversa.unread_count > 0) marcarLida.mutate(conversaId); }, [conversaId, conversa?.unread_count]);
@@ -179,6 +195,7 @@ function ChatWindow({ conversaId, onFechar }: { conversaId: string; onFechar: ()
   if (loadingConversa) return <div className="flex flex-1 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
   if (!conversa) return null;
   const nome = conversa.client?.nome ?? 'Cliente';
+  const isWhatsApp = conversa.channel === 'whatsapp';
 
   return (
     <div className="flex flex-1 overflow-hidden">
@@ -191,6 +208,11 @@ function ChatWindow({ conversaId, onFechar }: { conversaId: string; onFechar: ()
             <div className="flex items-center gap-1.5">
               <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded', CHANNEL_COLORS[conversa.channel])}>{CHANNEL_LABELS[conversa.channel]}</span>
               <span className="text-[10px] text-muted-foreground">{STATUS_LABELS[conversa.status]}</span>
+              {isWhatsApp && (
+                canalConectado
+                  ? <span className="flex items-center gap-0.5 text-[10px] text-emerald-600 dark:text-emerald-400"><Wifi className="h-3 w-3" />Conectado</span>
+                  : <span className="flex items-center gap-0.5 text-[10px] text-amber-600 dark:text-amber-400"><WifiOff className="h-3 w-3" />Não conectado</span>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -237,7 +259,12 @@ function ChatWindow({ conversaId, onFechar }: { conversaId: string; onFechar: ()
                 {enviar.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               </Button>
             </div>
-            <p className="text-[10px] text-muted-foreground mt-1.5 text-center">Canal não conectado — mensagens salvas localmente</p>
+            {isWhatsApp && !canalConectado && (
+              <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1.5 text-center">
+                WhatsApp não conectado — mensagens salvas localmente.{' '}
+                <Link to="/configuracoes" search={{}} params={{}} className="underline">Configurar</Link>
+              </p>
+            )}
           </div>
         ) : (
           <div className="border-t px-4 py-3 text-center"><p className="text-xs text-muted-foreground">Esta conversa está encerrada.</p></div>
@@ -251,93 +278,107 @@ function ChatWindow({ conversaId, onFechar }: { conversaId: string; onFechar: ()
 function WhatsAppPage() {
   const [conversaAtiva, setConversaAtiva] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
-  const [canalFiltro, setCanalFiltro] = useState<ConversationChannel | ''>('');
-  const [statusFiltro, setStatusFiltro] = useState<'open' | 'closed' | ''>('open');
+  const [canalFiltro, setCanalFiltro] = useState<ConversationChannel | 'all'>('all');
+  const [statusFiltro, setStatusFiltro] = useState<'open' | 'closed' | 'waiting' | 'all'>('open');
 
-  const filtros: ConversationFiltros = { busca: busca || undefined, channel: canalFiltro || undefined, status: statusFiltro || undefined, porPagina: 50 };
+  const filtros: ConversationFiltros = { busca: busca || undefined, channel: canalFiltro === 'all' ? undefined : canalFiltro, status: statusFiltro === 'all' ? undefined : statusFiltro as 'open' | 'closed', porPagina: 50 };
   const { data, isLoading } = useConversas(filtros);
+  const { data: whatsappConectado = false } = useWhatsAppConectado();
   const conversas = data?.data ?? [];
 
+  useRealtimeConversas();
+
   return (
-    <div className="flex h-full overflow-hidden">
-      <ResizablePanelGroup orientation="horizontal">
-        <ResizablePanel defaultSize={28} minSize={22} maxSize={40}>
-          <div className="flex flex-col h-full border-r">
-            <div className="px-4 py-3 border-b shrink-0">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold">Comunicação</h2>
-                <Button size="icon" variant="ghost" className="h-7 w-7"><Plus className="h-4 w-4" /></Button>
+    <div className="flex flex-col h-full overflow-hidden">
+      {!whatsappConectado && (
+        <div className="flex items-center gap-2 border-b bg-amber-50 dark:bg-amber-900/10 px-4 py-2 shrink-0">
+          <WifiOff className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <p className="text-xs text-amber-700 dark:text-amber-400 flex-1">
+            WhatsApp não configurado — mensagens são salvas localmente apenas.{' '}
+            <Link to="/configuracoes" search={{}} params={{}} className="underline font-medium">Configurar Evolution API</Link>
+          </p>
+        </div>
+      )}
+      <div className="flex flex-1 overflow-hidden">
+        <ResizablePanelGroup orientation="horizontal">
+          <ResizablePanel defaultSize={28} minSize={22} maxSize={40}>
+            <div className="flex flex-col h-full border-r">
+              <div className="px-4 py-3 border-b shrink-0">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-semibold">Comunicação</h2>
+                  <Button size="icon" variant="ghost" className="h-7 w-7"><Plus className="h-4 w-4" /></Button>
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input placeholder="Buscar conversa..." className="pl-9 h-8 text-sm" value={busca} onChange={(e) => setBusca(e.target.value)} />
+                </div>
+                <div className="flex gap-1.5 mt-2">
+                  <Select value={statusFiltro} onValueChange={(v) => setStatusFiltro(v as typeof statusFiltro)}>
+                    <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="Status" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      <SelectItem value="open">Abertas</SelectItem>
+                      <SelectItem value="closed">Encerradas</SelectItem>
+                      <SelectItem value="waiting">Aguardando</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={canalFiltro} onValueChange={(v) => setCanalFiltro(v as typeof canalFiltro)}>
+                    <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="Canal" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {CONVERSATION_CHANNELS.map((c) => <SelectItem key={c} value={c}>{CHANNEL_LABELS[c]}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Buscar conversa..." className="pl-9 h-8 text-sm" value={busca} onChange={(e) => setBusca(e.target.value)} />
-              </div>
-              <div className="flex gap-1.5 mt-2">
-                <Select value={statusFiltro} onValueChange={(v) => setStatusFiltro(v as typeof statusFiltro)}>
-                  <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="Status" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Todas</SelectItem>
-                    <SelectItem value="open">Abertas</SelectItem>
-                    <SelectItem value="closed">Encerradas</SelectItem>
-                    <SelectItem value="waiting">Aguardando</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={canalFiltro} onValueChange={(v) => setCanalFiltro(v as typeof canalFiltro)}>
-                  <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="Canal" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Todos</SelectItem>
-                    {CONVERSATION_CHANNELS.map((c) => <SelectItem key={c} value={c}>{CHANNEL_LABELS[c]}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+
+              <ScrollArea className="flex-1">
+                {isLoading ? (
+                  <div className="divide-y">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-3 px-4 py-3">
+                        <Skeleton className="h-10 w-10 rounded-full shrink-0" />
+                        <div className="flex-1 space-y-1.5"><Skeleton className="h-3.5 w-32" /><Skeleton className="h-3 w-48" /></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : conversas.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 gap-2 text-center px-4">
+                    <MessageCircle className="h-8 w-8 text-muted-foreground/30" />
+                    <p className="text-xs text-muted-foreground">{busca ? 'Nenhuma conversa encontrada.' : 'Nenhuma conversa ainda.'}</p>
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {conversas.map((c) => <ConversationCard key={c.id} conversa={c} ativa={conversaAtiva === c.id} onClick={() => setConversaAtiva(c.id)} />)}
+                  </div>
+                )}
+              </ScrollArea>
+
+              <div className="border-t px-4 py-2 shrink-0">
+                <p className="text-[10px] text-muted-foreground text-center">{data?.total ?? 0} conversa{(data?.total ?? 0) !== 1 ? 's' : ''}</p>
               </div>
             </div>
+          </ResizablePanel>
 
-            <ScrollArea className="flex-1">
-              {isLoading ? (
-                <div className="divide-y">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 px-4 py-3">
-                      <Skeleton className="h-10 w-10 rounded-full shrink-0" />
-                      <div className="flex-1 space-y-1.5"><Skeleton className="h-3.5 w-32" /><Skeleton className="h-3 w-48" /></div>
-                    </div>
-                  ))}
+          <ResizableHandle withHandle />
+
+          <ResizablePanel defaultSize={72}>
+            {conversaAtiva ? (
+              <ChatWindow conversaId={conversaAtiva} canalConectado={whatsappConectado} onFechar={() => setConversaAtiva(null)} />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-6">
+                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+                  <MessageCircle className="h-8 w-8 text-muted-foreground/40" />
                 </div>
-              ) : conversas.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 gap-2 text-center px-4">
-                  <MessageCircle className="h-8 w-8 text-muted-foreground/30" />
-                  <p className="text-xs text-muted-foreground">{busca ? 'Nenhuma conversa encontrada.' : 'Nenhuma conversa ainda.'}</p>
+                <div>
+                  <p className="text-sm font-medium">Central de Comunicação</p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-xs">Selecione uma conversa para visualizar o histórico, ou inicie uma nova conversa a partir da página do cliente.</p>
                 </div>
-              ) : (
-                <div className="divide-y">
-                  {conversas.map((c) => <ConversationCard key={c.id} conversa={c} ativa={conversaAtiva === c.id} onClick={() => setConversaAtiva(c.id)} />)}
-                </div>
-              )}
-            </ScrollArea>
-
-            <div className="border-t px-4 py-2 shrink-0">
-              <p className="text-[10px] text-muted-foreground text-center">{data?.total ?? 0} conversa{(data?.total ?? 0) !== 1 ? 's' : ''}</p>
-            </div>
-          </div>
-        </ResizablePanel>
-
-        <ResizableHandle withHandle />
-
-        <ResizablePanel defaultSize={72}>
-          {conversaAtiva ? (
-            <ChatWindow conversaId={conversaAtiva} onFechar={() => setConversaAtiva(null)} />
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full gap-3 text-center p-6">
-              <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
-                <MessageCircle className="h-8 w-8 text-muted-foreground/40" />
               </div>
-              <div>
-                <p className="text-sm font-medium">Central de Comunicação</p>
-                <p className="text-xs text-muted-foreground mt-1 max-w-xs">Selecione uma conversa para visualizar o histórico, ou inicie uma nova conversa a partir da página do cliente.</p>
-              </div>
-            </div>
-          )}
-        </ResizablePanel>
-      </ResizablePanelGroup>
+            )}
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
     </div>
   );
 }
