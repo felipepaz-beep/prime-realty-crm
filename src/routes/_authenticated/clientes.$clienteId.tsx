@@ -11,6 +11,7 @@ import { useClienteDetalhe, useAtualizarCliente, useRemoverCliente } from '@/fea
 import { ClienteForm } from '@/features/clientes/components/cliente-form';
 import { ClienteTimeline } from '@/features/clientes/components/cliente-timeline';
 import { ClienteLinks } from '@/features/clientes/components/cliente-links';
+import { ClienteFinanceiro } from '@/features/financeiro/components/cliente-financeiro';
 import { StatusBadge, EtapaFunilBadge, PrioridadeBadge, TemperaturaBadge } from '@/features/clientes/components/cliente-badge';
 import { TimelineService } from '@/features/clientes/services/timeline.service';
 import type { ClienteFormValues } from '@/features/clientes/schemas';
@@ -105,6 +106,7 @@ function ClienteDetalhePage() {
           <TabsList className="h-10 bg-transparent p-0 gap-0">
             <TabsTrigger value="visao-geral" className={TAB_CLASS}>Visão geral</TabsTrigger>
             <TabsTrigger value="documentos" className={TAB_CLASS}>Documentos</TabsTrigger>
+            <TabsTrigger value="financeiro" className={TAB_CLASS}>Financeiro</TabsTrigger>
             <TabsTrigger value="timeline" className={TAB_CLASS}>Histórico</TabsTrigger>
           </TabsList>
         </div>
@@ -143,6 +145,10 @@ function ClienteDetalhePage() {
 
         <TabsContent value="documentos" className="flex-1 overflow-auto mt-0">
           <div className="p-6 max-w-4xl"><ClienteLinks clienteId={clienteId} /></div>
+        </TabsContent>
+
+        <TabsContent value="financeiro" className="flex-1 overflow-auto mt-0">
+          <div className="p-6 max-w-2xl"><ClienteFinanceiro clienteId={clienteId} /></div>
         </TabsContent>
 
         <TabsContent value="timeline" className="flex-1 overflow-auto mt-0">
