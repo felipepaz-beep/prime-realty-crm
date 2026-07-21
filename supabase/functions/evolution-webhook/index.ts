@@ -129,5 +129,18 @@ Deno.serve(async (req) => {
   const { error: msgErr } = await supabase.from("messages").insert({ conversation_id: conversationId, direction: "incoming", sender: pushName, type, content, attachment, status: "delivered", sent_at: sentAt, metadata: { provider_msg_id: key?.id, remote_jid: remoteJid } });
   if (msgErr) return new Response("Error saving message", { status: 500 });
 
+  // 🤖 DISPARO DA IA: Processa a mensagem em background para responder o cliente
+  if (content && evolutionConfig.apiKey) {
+    processarMensagemIa({
+      supabase,
+      clienteId: clientId,
+      conversationId,
+      mensagem: content,
+      telefone: rawPhone,
+      ownerId,
+      evolutionConfig,
+    }).catch((err) => console.error("Erro ao processar IA:", err));
+  }
+
   return new Response("OK", { status: 200 });
 });
