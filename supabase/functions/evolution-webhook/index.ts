@@ -94,6 +94,11 @@ Deno.serve(async (req) => {
   if (config?.instance_name && config.instance_name !== instanceName) return new Response("Instance mismatch", { status: 200 });
 
   const ownerId = integration.owner_id as string;
+  const evolutionConfig = {
+    apiKey: (config?.api_key as string) ?? "",
+    baseUrl: ((config?.base_url as string) ?? "https://evolution-api-production-448e.up.railway.app").replace(/\/$/, ""),
+    instance: (config?.instance_name as string) ?? "prime-crm",
+  };
   const phoneVariants = normalizePhone(rawPhone);
 
   const { data: client } = await supabase.from("clients").select("id").eq("owner_id", ownerId).is("deleted_at", null).or(phoneVariants.flatMap((p) => [`telefone.eq.${p}`, `whatsapp.eq.${p}`]).join(",")).maybeSingle();
