@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
-import { Sparkles, BarChart2, BookOpen, Settings, Zap, AlertCircle, Star, StarOff, Plus, Search, Trash2, Pencil, Loader2 } from 'lucide-react';
+import { Sparkles, BarChart2, BookOpen, Settings, Zap, AlertCircle, Star, StarOff, Plus, Search, Trash2, Pencil, Loader2, Bot } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
