@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { processarMensagemIa } from "./ia.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -93,6 +94,11 @@ Deno.serve(async (req) => {
   if (config?.instance_name && config.instance_name !== instanceName) return new Response("Instance mismatch", { status: 200 });
 
   const ownerId = integration.owner_id as string;
+  const evolutionConfig = {
+    apiKey: (config?.api_key as string) ?? "",
+    baseUrl: ((config?.base_url as string) ?? "https://evolution-api-production-448e.up.railway.app").replace(/\/$/, ""),
+    instance: (config?.instance_name as string) ?? "prime-crm",
+  };
   const phoneVariants = normalizePhone(rawPhone);
 
   const { data: client } = await supabase.from("clients").select("id").eq("owner_id", ownerId).is("deleted_at", null).or(phoneVariants.flatMap((p) => [`telefone.eq.${p}`, `whatsapp.eq.${p}`]).join(",")).maybeSingle();
@@ -122,6 +128,19 @@ Deno.serve(async (req) => {
 
   const { error: msgErr } = await supabase.from("messages").insert({ conversation_id: conversationId, direction: "incoming", sender: pushName, type, content, attachment, status: "delivered", sent_at: sentAt, metadata: { provider_msg_id: key?.id, remote_jid: remoteJid } });
   if (msgErr) return new Response("Error saving message", { status: 500 });
+
+  // 🤖 DISPARO DA IA: Processa a mensagem em background para responder o cliente
+  if (content && evolutionConfig.apiKey) {
+    processarMensagemIa({
+      supabase,
+      clienteId: clientId,
+      conversationId,
+      mensagem: content,
+      telefone: rawPhone,
+      ownerId,
+      evolutionConfig,
+    }).catch((err) => console.error("Erro ao processar IA:", err));
+  }
 
   return new Response("OK", { status: 200 });
 });
