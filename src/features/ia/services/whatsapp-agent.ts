@@ -2,8 +2,8 @@
 // src/features/ia/services/whatsapp-agent.ts
 // Agente de IA para WhatsApp — lê conversas, analisa, sugere respostas e alimenta o CRM
 
-import { supabase } from '@/lib/supabase'
-import { TimelineService } from '@/features/timeline/services/timeline-service'
+import { supabase } from '@/integrations/supabase/client'
+import { TimelineService } from '@/features/clientes/services/timeline.service'
 
 // ─── Configuração ────────────────────────────────────────────────────────────
 
@@ -220,18 +220,16 @@ export async function logInteractionToTimeline(
   chat: PendingChat,
   suggestion: string
 ) {
-  await TimelineService.addEvent({
-    client_id: clientId,
-    type: 'whatsapp',
-    title: 'Mensagem pendente detectada pelo Agente IA',
-    description: `Cliente aguarda resposta há ${chat.hoursWaiting}h.\n\nÚltima mensagem: "${chat.lastMessage}"\n\nSugestão do agente: "${suggestion}"`,
-    metadata: {
+  await TimelineService.agenteIADetectado(
+    clientId,
+    `Cliente aguarda resposta há ${chat.hoursWaiting}h.\n\nÚltima mensagem: "${chat.lastMessage}"\n\nSugestão do agente: "${suggestion}"`,
+    {
       chatId: chat.chatId,
       hoursWaiting: chat.hoursWaiting,
       suggestedReply: suggestion,
       source: 'whatsapp-agent'
     }
-  })
+  )
 }
 
 // ─── 5. Identificar contatos para follow-up ──────────────────────────────────
