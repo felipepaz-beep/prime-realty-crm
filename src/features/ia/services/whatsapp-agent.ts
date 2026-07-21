@@ -7,19 +7,32 @@ import { IntegrationService } from '@/features/configuracoes/services/settings.s
 
 // ─── Configuração ────────────────────────────────────────────────────────────
 
-const EVOLUTION_URL = 'https://evolution-api-production-448e.up.railway.app'
-const INSTANCE = 'prime-crm'
 const HORAS_SEM_RESPOSTA = 2    // considera pendente após 2h sem resposta
 const DIAS_SEM_CONTATO = 7     // considera para follow-up após 7 dias
 
-async function getEvolutionKey(): Promise<string> {
+const EVOLUTION_URL_FALLBACK = 'https://evolution-api-production-448e.up.railway.app'
+const INSTANCE_FALLBACK = 'prime-crm'
+
+interface EvolutionConfig {
+  apiKey: string
+  baseUrl: string
+  instance: string
+}
+
+async function getEvolutionConfig(): Promise<EvolutionConfig> {
   const integration = await IntegrationService.buscarProvider('whatsapp')
-  return (integration?.configuration as Record<string, string> | undefined)?.api_key ?? ''
+  const cfg = (integration?.configuration ?? {}) as Record<string, string>
+  return {
+    apiKey: cfg.api_key ?? '',
+    baseUrl: (cfg.base_url ?? EVOLUTION_URL_FALLBACK).replace(/\/$/, ''),
+    instance: cfg.instance_name ?? INSTANCE_FALLBACK,
+  }
 }
 
 async function getAnthropicKey(): Promise<string> {
   const integration = await IntegrationService.buscarProvider('claude')
-  return (integration?.configuration as Record<string, string> | undefined)?.api_key ?? ''
+  const cfg = (integration?.configuration ?? {}) as Record<string, string>
+  return cfg.anthropic_api_key ?? cfg.api_key ?? ''
 }
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
