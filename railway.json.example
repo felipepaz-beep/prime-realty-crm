@@ -1,0 +1,23 @@
+# Railway Configuration via JSON
+# Alternative format to railway.toml
+# Only one (railway.toml or railway.json) should be used
+
+{
+  "$schema": "https://railway.app/json-schema.json",
+  "build": {
+    "builder": "docker",
+    "dockerfilePath": "",
+    "image": "evoapicloud/evolution-api:v2.3.7",
+    "context": "."
+  },
+  "deploy": {
+    "restartPolicyType": "on_failure",
+    "restartPolicyMaxRetries": 3,
+    "numReplicas": 1,
+    "startCommand": ""
+  },
+  "env": {
+    "NODE_ENV": "production",
+    "PORT": "3000"
+  }
+}
