@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
-import { Sparkles, BarChart2, BookOpen, Settings, Zap, AlertCircle, Star, StarOff, Plus, Search, Trash2, Pencil, Loader2 } from 'lucide-react';
+import { Sparkles, BarChart2, BookOpen, Settings, Zap, AlertCircle, Star, StarOff, Plus, Search, Trash2, Pencil, Loader2, Bot } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useAISummary, useAIRecentLogs, usePrompts, useCriarPrompt, useAtualizarPrompt, useToggleFavoritoPrompt, useRemoverPrompt } from '@/features/ia/hooks/use-ai';
 import { AIDrawer } from '@/features/ia/components/ai-drawer';
+import { AgenteDashboard } from '@/features/ia/components/AgenteDashboard';
 import { AI_ACTION_LABELS, AI_CATEGORIES, AI_CATEGORY_LABELS, PROVIDER_COLORS, PROVIDER_LABELS } from '@/features/ia/types';
 import type { AICategory, AIPrompt } from '@/features/ia/types';
 
@@ -259,10 +260,12 @@ function IAPage() {
             <TabsTrigger value="dashboard" className="gap-1.5"><BarChart2 className="h-4 w-4" />Dashboard</TabsTrigger>
             <TabsTrigger value="prompts" className="gap-1.5"><BookOpen className="h-4 w-4" />Biblioteca</TabsTrigger>
             <TabsTrigger value="config" className="gap-1.5"><Settings className="h-4 w-4" />Configurações</TabsTrigger>
+            <TabsTrigger value="agente" className="gap-1.5"><Bot className="h-4 w-4" />Agente IA</TabsTrigger>
           </TabsList>
           <TabsContent value="dashboard"><DashboardIA /></TabsContent>
           <TabsContent value="prompts"><BibliotecaPrompts /></TabsContent>
           <TabsContent value="config"><ConfiguracoesIA /></TabsContent>
+          <TabsContent value="agente"><AgenteDashboard /></TabsContent>
         </Tabs>
       </div>
     </div>

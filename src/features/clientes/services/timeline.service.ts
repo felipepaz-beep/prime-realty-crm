@@ -139,6 +139,9 @@ export const TimelineService = {
   eventoCustomizado(clientId: string, titulo: string, descricao?: string, categoria: TimelineCategory = 'sistema') {
     return registrarEvento({ client_id: clientId, category: categoria, event_type: 'evento_customizado', title: titulo, description: descricao });
   },
+  agenteIADetectado(clientId: string, descricao: string, metadata: Record<string, unknown>) {
+    return registrarEvento({ client_id: clientId, category: 'comunicacao', event_type: 'evento_customizado', title: 'Mensagem pendente detectada pelo Agente IA', description: descricao, metadata });
+  },
 } as const;
 
 const ETAPA_LABELS: Record<string, string> = {

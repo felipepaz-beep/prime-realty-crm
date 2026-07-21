@@ -1,9 +1,9 @@
-
 // src/features/ia/services/whatsapp-agent.ts
 // Agente de IA para WhatsApp — lê conversas, analisa, sugere respostas e alimenta o CRM
 
-import { supabase } from '@/lib/supabase'
-import { TimelineService } from '@/features/timeline/services/timeline-service'
+import { supabase } from '@/integrations/supabase/client'
+import { TimelineService } from '@/features/clientes/services/timeline.service'
+import { IntegrationService } from '@/features/configuracoes/services/settings.service'
 
 // ─── Configuração ────────────────────────────────────────────────────────────
 
@@ -13,21 +13,13 @@ const HORAS_SEM_RESPOSTA = 2    // considera pendente após 2h sem resposta
 const DIAS_SEM_CONTATO = 7     // considera para follow-up após 7 dias
 
 async function getEvolutionKey(): Promise<string> {
-  const { data } = await supabase
-    .from('configurations')
-    .select('value')
-    .eq('key', 'evolution_api_key')
-    .single()
-  return data?.value ?? ''
+  const integration = await IntegrationService.buscarProvider('whatsapp')
+  return (integration?.configuration as Record<string, string> | undefined)?.api_key ?? ''
 }
 
 async function getAnthropicKey(): Promise<string> {
-  const { data } = await supabase
-    .from('configurations')
-    .select('value')
-    .eq('key', 'anthropic_api_key')
-    .single()
-  return data?.value ?? ''
+  const integration = await IntegrationService.buscarProvider('claude')
+  return (integration?.configuration as Record<string, string> | undefined)?.api_key ?? ''
 }
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
@@ -61,6 +53,7 @@ export interface AgentSuggestion {
 
 export async function fetchPendingChats(): Promise<PendingChat[]> {
   const apiKey = await getEvolutionKey()
+  if (!apiKey) throw new Error('Chave da Evolution API não configurada.')
 
   // Busca todos os chats da instância
   const res = await fetch(`${EVOLUTION_URL}/chat/findChats/${INSTANCE}`, {
@@ -130,6 +123,7 @@ export async function fetchPendingChats(): Promise<PendingChat[]> {
 
 export async function analyzeConversation(chat: PendingChat): Promise<string> {
   const anthropicKey = await getAnthropicKey()
+  if (!anthropicKey) throw new Error('Chave da Anthropic não configurada.')
 
   // Monta histórico legível
   const historico = chat.messages
@@ -167,7 +161,7 @@ Responda APENAS com o texto da mensagem, sem explicações.`
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 300,
       messages: [{ role: 'user', content: prompt }]
     })
@@ -185,23 +179,31 @@ export async function syncContactToCRM(chat: PendingChat): Promise<string | null
   // Verifica se já existe pelo telefone
   const { data: existing } = await supabase
     .from('clients')
-    .select('id, name, phone')
-    .eq('phone', chat.contactPhone)
-    .single()
+    .select('id, nome, telefone')
+    .or(`telefone.eq.${chat.contactPhone},whatsapp.eq.${chat.contactPhone}`)
+    .is('deleted_at', null)
+    .maybeSingle()
 
   if (existing) return existing.id
 
   // Cria novo cliente
+  const { data: sessionData } = await supabase.auth.getUser()
+  const ownerId = sessionData.user?.id
+  if (!ownerId) return null
+
   const { data: created, error } = await supabase
     .from('clients')
     .insert({
-      name: chat.contactName,
-      phone: chat.contactPhone,
-      source: 'WhatsApp',
-      status: 'lead',
-      priority: 'medium',
-      notes: `Contato importado automaticamente via agente de IA em ${new Date().toLocaleDateString('pt-BR')}`
-    })
+      owner_id: ownerId,
+      nome: chat.contactName,
+      telefone: chat.contactPhone,
+      origem_lead: 'WhatsApp',
+      status: 'ativo',
+      etapa_funil: 'novo_lead',
+      prioridade: 'media',
+      temperatura: 'morno',
+      observacoes: `Contato importado automaticamente via agente de IA em ${new Date().toLocaleDateString('pt-BR')}`
+    } as never)
     .select('id')
     .single()
 
@@ -220,18 +222,16 @@ export async function logInteractionToTimeline(
   chat: PendingChat,
   suggestion: string
 ) {
-  await TimelineService.addEvent({
-    client_id: clientId,
-    type: 'whatsapp',
-    title: 'Mensagem pendente detectada pelo Agente IA',
-    description: `Cliente aguarda resposta há ${chat.hoursWaiting}h.\n\nÚltima mensagem: "${chat.lastMessage}"\n\nSugestão do agente: "${suggestion}"`,
-    metadata: {
+  await TimelineService.agenteIADetectado(
+    clientId,
+    `Cliente aguarda resposta há ${chat.hoursWaiting}h.\n\nÚltima mensagem: "${chat.lastMessage}"\n\nSugestão do agente: "${suggestion}"`,
+    {
       chatId: chat.chatId,
       hoursWaiting: chat.hoursWaiting,
       suggestedReply: suggestion,
       source: 'whatsapp-agent'
     }
-  })
+  )
 }
 
 // ─── 5. Identificar contatos para follow-up ──────────────────────────────────
@@ -242,9 +242,10 @@ export async function fetchFollowUpCandidates() {
 
   const { data: clients } = await supabase
     .from('clients')
-    .select('id, name, phone, status, updated_at')
-    .in('status', ['lead', 'active'])
+    .select('id, nome, telefone, status, updated_at')
+    .in('status', ['ativo', 'inativo'])
     .lt('updated_at', diasAtras.toISOString())
+    .is('deleted_at', null)
 
   return clients ?? []
 }
@@ -254,6 +255,9 @@ export async function generateFollowUpMessage(
   daysSinceContact: number
 ): Promise<string> {
   const anthropicKey = await getAnthropicKey()
+  if (!anthropicKey) {
+    return `Olá ${clientName}! Tudo bem? Estou à disposição caso queira retomar a busca pelo imóvel ideal. 😊`
+  }
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -263,7 +267,7 @@ export async function generateFollowUpMessage(
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 200,
       messages: [{
         role: 'user',
@@ -274,6 +278,10 @@ Responda APENAS com o texto da mensagem.`
       }]
     })
   })
+
+  if (!res.ok) {
+    return `Olá ${clientName}! Tudo bem? Estou à disposição caso queira retomar a busca pelo imóvel ideal. 😊`
+  }
 
   const data = await res.json()
   return data.content?.[0]?.text ?? `Olá ${clientName}! Tudo bem? Estou à disposição caso queira retomar a busca pelo imóvel ideal. 😊`
@@ -313,13 +321,14 @@ export async function runWhatsAppAgent(): Promise<AgentRunResult> {
       ])
 
       if (clientId) {
-        const isNew = !(await supabase
+        const { data: existing } = await supabase
           .from('clients')
           .select('id')
-          .eq('phone', chat.contactPhone)
-          .single()).data?.id
+          .or(`telefone.eq.${chat.contactPhone},whatsapp.eq.${chat.contactPhone}`)
+          .is('deleted_at', null)
+          .maybeSingle()
 
-        if (isNew) result.newClientsCreated++
+        if (!existing) result.newClientsCreated++
 
         await logInteractionToTimeline(clientId, chat, suggestion)
       }
@@ -346,10 +355,10 @@ export async function runWhatsAppAgent(): Promise<AgentRunResult> {
       const days = Math.floor(
         (agora.getTime() - new Date(client.updated_at).getTime()) / 1000 / 3600 / 24
       )
-      const message = await generateFollowUpMessage(client.name, days)
+      const message = await generateFollowUpMessage(client.nome, days)
       result.followUpCandidates.push({
-        name: client.name,
-        phone: client.phone,
+        name: client.nome,
+        phone: client.telefone ?? '',
         daysSinceContact: days,
         message
       })
