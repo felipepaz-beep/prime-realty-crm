@@ -7,19 +7,32 @@ import { IntegrationService } from '@/features/configuracoes/services/settings.s
 
 // ─── Configuração ────────────────────────────────────────────────────────────
 
-const EVOLUTION_URL = 'https://evolution-api-production-448e.up.railway.app'
-const INSTANCE = 'prime-crm'
 const HORAS_SEM_RESPOSTA = 2    // considera pendente após 2h sem resposta
 const DIAS_SEM_CONTATO = 7     // considera para follow-up após 7 dias
 
-async function getEvolutionKey(): Promise<string> {
+const EVOLUTION_URL_FALLBACK = 'https://evolution-api-production-448e.up.railway.app'
+const INSTANCE_FALLBACK = 'prime-crm'
+
+interface EvolutionConfig {
+  apiKey: string
+  baseUrl: string
+  instance: string
+}
+
+async function getEvolutionConfig(): Promise<EvolutionConfig> {
   const integration = await IntegrationService.buscarProvider('whatsapp')
-  return (integration?.configuration as Record<string, string> | undefined)?.api_key ?? ''
+  const cfg = (integration?.configuration ?? {}) as Record<string, string>
+  return {
+    apiKey: cfg.api_key ?? '',
+    baseUrl: (cfg.base_url ?? EVOLUTION_URL_FALLBACK).replace(/\/$/, ''),
+    instance: cfg.instance_name ?? INSTANCE_FALLBACK,
+  }
 }
 
 async function getAnthropicKey(): Promise<string> {
   const integration = await IntegrationService.buscarProvider('claude')
-  return (integration?.configuration as Record<string, string> | undefined)?.api_key ?? ''
+  const cfg = (integration?.configuration ?? {}) as Record<string, string>
+  return cfg.anthropic_api_key ?? cfg.api_key ?? ''
 }
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
@@ -52,12 +65,14 @@ export interface AgentSuggestion {
 // ─── 1. Buscar conversas pendentes ───────────────────────────────────────────
 
 export async function fetchPendingChats(): Promise<PendingChat[]> {
-  const apiKey = await getEvolutionKey()
+  const { apiKey, baseUrl, instance } = await getEvolutionConfig()
   if (!apiKey) throw new Error('Chave da Evolution API não configurada.')
 
-  // Busca todos os chats da instância
-  const res = await fetch(`${EVOLUTION_URL}/chat/findChats/${INSTANCE}`, {
-    headers: { apikey: apiKey }
+  // Busca todos os chats da instância (Evolution API v2 usa POST)
+  const res = await fetch(`${baseUrl}/chat/findChats/${instance}`, {
+    method: 'POST',
+    headers: { apikey: apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
   })
 
   if (!res.ok) throw new Error(`Evolution API erro: ${res.status}`)
@@ -72,7 +87,7 @@ export async function fetchPendingChats(): Promise<PendingChat[]> {
 
     // Busca últimas 20 mensagens do chat
     const msgRes = await fetch(
-      `${EVOLUTION_URL}/chat/findMessages/${INSTANCE}`,
+      `${baseUrl}/chat/findMessages/${instance}`,
       {
         method: 'POST',
         headers: { apikey: apiKey, 'Content-Type': 'application/json' },
