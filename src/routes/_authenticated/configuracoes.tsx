@@ -193,6 +193,8 @@ function IntegracoesConfig() {
   const salvar = useSalvarIntegration();
   const [wpDialog, setWpDialog] = useState(false);
   const [wpForm, setWpForm] = useState(EMPTY_WP_FORM);
+  const [claudeDialog, setClaudeDialog] = useState(false);
+  const [claudeKey, setClaudeKey] = useState('');
   const AI_PROVIDERS: IntegrationProvider[] = ['openai','gemini','claude'];
   const COMUNICACAO: IntegrationProvider[] = ['whatsapp','instagram','telegram','messenger'];
   const PRODUTIVIDADE: IntegrationProvider[] = ['google_calendar','google_drive'];
@@ -225,13 +227,39 @@ function IntegracoesConfig() {
     setWpDialog(false);
   };
 
+  const handleAbrirClaude = () => {
+    const existing = integrations?.find((i) => i.provider === 'claude');
+    const cfg = existing?.configuration as { anthropic_api_key?: string } | undefined;
+    setClaudeKey(cfg?.anthropic_api_key ?? '');
+    setClaudeDialog(true);
+  };
+
+  const handleSalvarClaude = async () => {
+    if (!claudeKey.trim().startsWith('sk-ant-')) {
+      toast.error('Informe uma chave válida começando com sk-ant-');
+      return;
+    }
+    await salvar.mutateAsync({ provider: 'claude', status: 'connected', config: { anthropic_api_key: claudeKey.trim() } });
+    toast.success('Anthropic Claude conectado!');
+    setClaudeDialog(false);
+    setClaudeKey('');
+  };
+
   if (isLoading) return <div className="space-y-3">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}</div>;
   return (
     <div className="space-y-6 max-w-2xl">
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Sparkles className="h-4 w-4" />Inteligência Artificial</CardTitle><CardDescription className="text-xs">Configure as chaves de API para ativar o AI Hub</CardDescription></CardHeader>
         <CardContent>
-          {AI_PROVIDERS.map((p) => <IntegrationCard key={p} provider={p} status={getStatus(p)} onDesconectar={() => handleDesconectar(p)} />)}
+          {AI_PROVIDERS.map((p) => (
+            <IntegrationCard
+              key={p}
+              provider={p}
+              status={getStatus(p)}
+              onDesconectar={() => handleDesconectar(p)}
+              onConectar={p === 'claude' ? handleAbrirClaude : undefined}
+            />
+          ))}
           <div className="mt-3 p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground">🔒 As chaves de API são armazenadas criptografadas e nunca expostas no frontend.</div>
         </CardContent>
       </Card>
