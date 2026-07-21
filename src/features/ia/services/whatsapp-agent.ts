@@ -65,12 +65,14 @@ export interface AgentSuggestion {
 // ─── 1. Buscar conversas pendentes ───────────────────────────────────────────
 
 export async function fetchPendingChats(): Promise<PendingChat[]> {
-  const apiKey = await getEvolutionKey()
+  const { apiKey, baseUrl, instance } = await getEvolutionConfig()
   if (!apiKey) throw new Error('Chave da Evolution API não configurada.')
 
-  // Busca todos os chats da instância
-  const res = await fetch(`${EVOLUTION_URL}/chat/findChats/${INSTANCE}`, {
-    headers: { apikey: apiKey }
+  // Busca todos os chats da instância (Evolution API v2 usa POST)
+  const res = await fetch(`${baseUrl}/chat/findChats/${instance}`, {
+    method: 'POST',
+    headers: { apikey: apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
   })
 
   if (!res.ok) throw new Error(`Evolution API erro: ${res.status}`)
@@ -85,7 +87,7 @@ export async function fetchPendingChats(): Promise<PendingChat[]> {
 
     // Busca últimas 20 mensagens do chat
     const msgRes = await fetch(
-      `${EVOLUTION_URL}/chat/findMessages/${INSTANCE}`,
+      `${baseUrl}/chat/findMessages/${instance}`,
       {
         method: 'POST',
         headers: { apikey: apiKey, 'Content-Type': 'application/json' },
