@@ -358,7 +358,7 @@ export async function runWhatsAppAgent(): Promise<AgentRunResult> {
       const message = await generateFollowUpMessage(client.nome, days)
       result.followUpCandidates.push({
         name: client.nome,
-        phone: client.telefone,
+        phone: client.telefone ?? '',
         daysSinceContact: days,
         message
       })
