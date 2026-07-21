@@ -81,7 +81,12 @@ export async function fetchPendingChats(): Promise<PendingChat[]> {
   const pending: PendingChat[] = []
   const agora = new Date()
 
-  for (const chat of chats) {
+  // filtra chats sem id válido e limita a 50 chats por rodada
+  const chatsParaAnalisar = chats
+    .filter((c: any) => c.id && c.id !== 'null')
+    .slice(0, 50)
+
+  for (const chat of chatsParaAnalisar) {
     // Ignora grupos
     if (chat.id?.includes('@g.us')) continue
 
