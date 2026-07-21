@@ -320,6 +320,31 @@ function IntegracoesConfig() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={claudeDialog} onOpenChange={setClaudeDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Conectar Anthropic Claude</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-xs">Chave de API *</Label>
+              <Input className="mt-1 font-mono text-xs" type="password" placeholder="sk-ant-..." value={claudeKey} onChange={(e) => setClaudeKey(e.target.value)} />
+              <p className="text-xs text-muted-foreground mt-1">Obtenha em console.anthropic.com → API Keys. A chave começa com <code>sk-ant-</code>.</p>
+            </div>
+            <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+              🔒 A chave é armazenada de forma segura no seu perfil e usada apenas nas chamadas do AI Hub.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClaudeDialog(false)}>Cancelar</Button>
+            <Button onClick={handleSalvarClaude} disabled={salvar.isPending}>
+              {salvar.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Salvar e conectar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
