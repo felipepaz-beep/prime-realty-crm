@@ -1,0 +1,26 @@
+# Railway Service Configuration
+# This file configures Evolution API to use the official Docker image
+# instead of building from Dockerfile, avoiding GitHub webhook issues
+
+[build]
+# Use official Evolution API image (stable v2.3.7)
+image = "evoapicloud/evolution-api:v2.3.7"
+
+[deploy]
+# Expose port 3000 (Evolution default)
+port = 3000
+
+# Health check endpoint
+healthcheck = {
+  type = "http",
+  path = "/",
+  interval = 30,
+  timeout = 5
+}
+
+# Environment variables (must also be set in Railway dashboard)
+[env]
+NODE_ENV = "production"
+PORT = "3000"
+# DATABASE_PROVIDER and DATABASE_CONNECTION_URI must be set in Railway Variables tab
+# (not here, as they contain credentials)
