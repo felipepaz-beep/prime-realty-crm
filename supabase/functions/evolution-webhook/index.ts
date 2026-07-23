@@ -96,9 +96,11 @@ function extractMessage(message: Record<string, unknown>): ExtractedMessage {
     const doc = (
       message.documentMessage ||
       (
-        (message.documentWithCaptionMessage as Record<string, unknown>)
-          ?.message as Record<string, unknown>
-      )?.documentMessage
+        (
+          (message.documentWithCaptionMessage as Record<string, unknown>)
+            ?.message as Record<string, unknown>
+        )?.documentMessage
+      )
     ) as Record<string, unknown>;
     return {
       content: (doc?.caption as string) || null,
@@ -550,14 +552,12 @@ async function executarAcao(params: {
     const etapa = normalizarEtapa(acao.etapa ?? "");
     if (!etapa) return "⚠️ Etapa não reconhecida.";
 
-    // Se encontrou pending, usa o client_id de lá
     if (pending) {
       await sb.from("clients").update({ etapa_funil: etapa }).eq("id", pending.client_id);
       await sb.from("ai_pending_responses").update({ status: "skipped" }).eq("id", pending.id);
       return `✅ *${pending.client_name}* → *${CRM_LABELS[etapa] ?? etapa}*`;
     }
 
-    // Senão busca direto na tabela de clientes pelo nome
     if (acao.client_name) {
       const cliente = await buscarClientePorNome(sb, ownerId, acao.client_name);
       if (cliente) {
@@ -572,7 +572,6 @@ async function executarAcao(params: {
 
   // ── ENVIAR_CLIENTE ───────────────────────────────────────────────────────────
   if (acao.tipo === "ENVIAR_CLIENTE") {
-    // Texto pode vir do comando do Felipe ou da sugestão salva
     const texto = acao.texto || pending?.suggested_text;
     if (!texto) return "⚠️ Nenhum texto para enviar.";
 
@@ -595,7 +594,6 @@ async function executarAcao(params: {
       return `✅ Enviado para *${pending.client_name}*`;
     }
 
-    // Tenta buscar cliente pelo nome e pegar o número diretamente
     if (acao.client_name) {
       const cliente = await buscarClientePorNome(sb, ownerId, acao.client_name);
       if (cliente) {
@@ -774,8 +772,9 @@ async function paz(params: {
     `O sistema já notifica Felipe UMA VEZ quando cliente manda mensagem. Novas mensagens do mesmo cliente atualizam silenciosamente o registro — Felipe não recebe spam. ` +
     `Quando Felipe age (envia ou ignora), o ciclo recomeça.\n\n` +
     `REGRA DE CADASTRO:\n` +
-    `Número desconhecido → sistema cria o lead automaticamente em "Novo Lead". ` +
-    `Você nunca cria, move ou altera CRM por conta própria — só quando Felipe mandar.\n` +
+    `Número desconhecido → sistema notifica Felipe e AGUARDA seu comando. Nunca cria lead automaticamente.\n` +
+    `Quando Felipe disser "PAZ adiciona [nome]" ou "PAZ cria esse lead como [nome]" → execute CRIAR_LEAD com o nome e número.\n` +
+    `Você nunca cria, move ou altera CRM por conta própria — só quando Felipe mandar explicitamente.\n` +
     contextoPendentes +
     contextoCrm +
     historicoCliente +
@@ -931,7 +930,53 @@ Deno.serve(async (req) => {
     return new Response("OK", { status: 200 });
   }
 
-  if (key?.fromMe === true) return new Response("OK", { status: 200 });
+  // ─── Mensagem saindo de Felipe para um cliente (captura para histórico) ──────
+  if (key?.fromMe === true) {
+    const phoneVariants = normalizePhone(rawPhone);
+    const { data: clienteOut } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("owner_id", ownerId)
+      .is("deleted_at", null)
+      .not("tags", "cs", '{"_paz_system_"}')
+      .or(phoneVariants.flatMap((p) => [`telefone.eq.${p}`, `whatsapp.eq.${p}`]).join(","))
+      .maybeSingle();
+
+    if (clienteOut && content) {
+      const { data: convOut } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("client_id", clienteOut.id)
+        .eq("channel", "whatsapp")
+        .eq("status", "open")
+        .maybeSingle();
+
+      if (convOut) {
+        const sentAt = messageTimestamp
+          ? new Date(messageTimestamp * 1000).toISOString()
+          : new Date().toISOString();
+        await supabase.from("messages").insert({
+          conversation_id: convOut.id,
+          direction: "outgoing",
+          sender: "Felipe Paz",
+          type,
+          content,
+          status: "delivered",
+          sent_at: sentAt,
+          metadata: { provider_msg_id: key?.id, remote_jid: remoteJid, source: "whatsapp-direct" },
+        }).catch((err) => console.warn("[WEBHOOK] Erro ao salvar mensagem saída:", err));
+
+        // Marcar pendente como enviado quando Felipe responde diretamente
+        await supabase
+          .from("ai_pending_responses")
+          .update({ status: "sent", sent_at: new Date().toISOString() })
+          .eq("client_id", clienteOut.id)
+          .eq("status", "pending")
+          .catch(() => {});
+      }
+    }
+    return new Response("OK", { status: 200 });
+  }
 
   // ─── Fluxo de cliente ─────────────────────────────────────────────────────────
   const phoneVariants = normalizePhone(rawPhone);
@@ -944,30 +989,52 @@ Deno.serve(async (req) => {
     .or(phoneVariants.flatMap((p) => [`telefone.eq.${p}`, `whatsapp.eq.${p}`]).join(","))
     .maybeSingle();
 
-  let clientId: string;
+  if (!clientData) {
+    // Número desconhecido — NÃO cria lead automaticamente
+    // Notifica Felipe UMA VEZ e aguarda seu comando
+    if (!content) return new Response("OK", { status: 200 });
 
-  if (clientData) {
-    clientId = clientData.id;
-  } else {
-    const { data: newClient, error: clientErr } = await supabase
-      .from("clients")
-      .insert({
-        owner_id: ownerId,
-        nome: pushName,
-        whatsapp: `+${rawPhone}`,
-        origem_lead: "whatsapp",
-        etapa_funil: "novo_lead",
-        tags: ["lead_inbound"],
-      })
-      .select("id")
-      .single();
-    if (clientErr || !newClient) {
-      console.error("[WEBHOOK] Erro ao criar cliente:", clientErr?.message);
-      return new Response("Error creating client", { status: 500 });
+    const fone = `+${rawPhone}`;
+    const openaiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
+    let sugestao = "";
+    if (openaiKey) {
+      try {
+        const r = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            max_tokens: 100,
+            messages: [
+              { role: "system", content: "Sugira uma resposta de primeiro atendimento como corretor Felipe Paz. Breve, natural, máximo 2 linhas." },
+              { role: "user", content: `Número desconhecido (${fone}): "${content}"\n\nSugira uma resposta:` },
+            ],
+          }),
+        });
+        if (r.ok) {
+          const j = (await r.json()) as { choices?: Array<{ message?: { content?: string } }> };
+          sugestao = j.choices?.[0]?.message?.content?.trim() ?? "";
+        }
+      } catch { /* ignora */ }
     }
-    clientId = newClient.id;
-    console.log(`[WEBHOOK] novo cliente: ${clientId}`);
+
+    const notif =
+      `📱 *Número desconhecido*\n${fone}\n\n` +
+      `"${content}"` +
+      (sugestao ? `\n\n💬 *PAZ sugere:*\n"${sugestao}"` : "") +
+      `\n\n_Responda "PAZ adiciona [nome]" para criar no CRM ou ignore._`;
+
+    if (evolutionConfig.apiKey) {
+      enviarWhatsApp(evolutionConfig, FELIPE_PHONE, notif).catch((err) =>
+        console.error("[WEBHOOK] Erro ao notificar número desconhecido:", err),
+      );
+    }
+
+    console.log(`[WEBHOOK] número desconhecido notificado: ${rawPhone}`);
+    return new Response("OK", { status: 200 });
   }
+
+  const clientId = clientData.id;
 
   const { data: existingConv } = await supabase
     .from("conversations")
