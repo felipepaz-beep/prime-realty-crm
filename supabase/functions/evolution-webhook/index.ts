@@ -240,11 +240,12 @@ async function buscarOuCriarConversaPaz(
       .maybeSingle();
 
     let pazClientId: string;
+    let isNewClient = false;
 
     if (pazClient) {
       pazClientId = pazClient.id;
     } else {
-      const { data: newClient } = await sb
+      const { data: newClient, error: newClientErr } = await sb
         .from("clients")
         .insert({
           owner_id: ownerId,
@@ -254,12 +255,12 @@ async function buscarOuCriarConversaPaz(
         })
         .select("id")
         .single();
-      if (!newClient) return null;
+      if (newClientErr || !newClient) {
+        console.warn("[PAZ] Erro ao criar cliente PAZ:", newClientErr?.message);
+        return null;
+      }
       pazClientId = newClient.id;
-      await sb
-        .from("clients")
-        .update({ deleted_at: new Date().toISOString() })
-        .eq("id", pazClientId);
+      isNewClient = true;
     }
 
     const { data: existingConv } = await sb
@@ -270,7 +271,7 @@ async function buscarOuCriarConversaPaz(
 
     if (existingConv) return existingConv.id;
 
-    const { data: newConv } = await sb
+    const { data: newConv, error: newConvErr } = await sb
       .from("conversations")
       .insert({
         owner_id: ownerId,
@@ -282,7 +283,20 @@ async function buscarOuCriarConversaPaz(
       .select("id")
       .single();
 
-    return newConv?.id ?? null;
+    if (newConvErr || !newConv) {
+      console.warn("[PAZ] Erro ao criar conversa PAZ:", newConvErr?.message);
+      return null;
+    }
+
+    // Soft-delete DEPOIS de criar a conversa (evita trigger que rejeita conv com cliente deletado)
+    if (isNewClient) {
+      await sb
+        .from("clients")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", pazClientId);
+    }
+
+    return newConv.id;
   } catch (err) {
     console.warn("[PAZ] Erro ao criar conversa histórico:", err);
     return null;
@@ -324,7 +338,7 @@ async function buscarClientesAtivos(
     .is("deleted_at", null)
     .not("tags", "cs", '{"_paz_system_"}')
     .order("updated_at", { ascending: false })
-    .limit(10);
+    .limit(30);
   return (data ?? []) as Array<{ nome: string; etapa_funil: string }>;
 }
 
@@ -651,6 +665,7 @@ async function paz(params: {
       historicoFelipePaz = await buscarHistoricoPazMessages(sb, pazConversationId, 12);
     }
   }
+  console.log(`[PAZ] memória: convId=${pazConversationId ?? "null"}, msgs=${historicoFelipePaz.length}`);
 
   // Clientes pendentes (aguardando decisão de resposta)
   const { data: allPendingRaw } = await sb
@@ -695,19 +710,22 @@ async function paz(params: {
   // ── Histórico de conversa do cliente mencionado (pending OU qualquer ativo) ──
   let historicoCliente = "";
   {
+    const msgLower = mensagem.toLowerCase();
+
     // 1. Tenta nos pendentes
     const mencionadoPending = allPending.find((p) =>
-      mensagem.toLowerCase().includes(p.client_name.toLowerCase().split(" ")[0]),
+      msgLower.includes(p.client_name.toLowerCase().split(" ")[0]),
     );
     if (mencionadoPending) {
       const hist = await buscarHistoricoConversa(sb, mencionadoPending.conversation_id, 20);
-      if (hist)
-        historicoCliente = `\n\n📝 *Conversa com ${mencionadoPending.client_name}:*\n${hist}`;
+      historicoCliente = hist
+        ? `\n\n📝 *Conversa com ${mencionadoPending.client_name}:*\n${hist}`
+        : `\n\n📝 *${mencionadoPending.client_name}* ainda não tem histórico de mensagens.`;
     } else {
       // 2. Tenta qualquer cliente ativo mencionado pelo primeiro nome
       for (const c of clientesAtivos) {
         const primeiroNome = c.nome.split(" ")[0].toLowerCase();
-        if (primeiroNome.length >= 3 && mensagem.toLowerCase().includes(primeiroNome)) {
+        if (primeiroNome.length >= 3 && msgLower.includes(primeiroNome)) {
           const cf = await buscarClientePorNome(sb, ownerId, c.nome);
           if (cf) {
             const { data: conv } = await sb
@@ -718,8 +736,14 @@ async function paz(params: {
               .maybeSingle();
             if (conv) {
               const hist = await buscarHistoricoConversa(sb, conv.id, 20);
-              if (hist) historicoCliente = `\n\n📝 *Conversa com ${c.nome}:*\n${hist}`;
+              historicoCliente = hist
+                ? `\n\n📝 *Conversa com ${c.nome}:*\n${hist}`
+                : `\n\n📝 *${c.nome}* está no CRM mas ainda não tem mensagens registradas.`;
+            } else {
+              historicoCliente = `\n\n⚠️ *${c.nome}* está no CRM mas não tem conversa WhatsApp aberta.`;
             }
+          } else {
+            historicoCliente = `\n\n⚠️ Não encontrei "${primeiroNome}" no CRM.`;
           }
           break;
         }
@@ -735,7 +759,7 @@ async function paz(params: {
     `CAPACIDADES (tudo que você sabe fazer):\n` +
     `• Mover cliente no CRM: "PAZ move o André pra qualificação" → execute\n` +
     `• Enviar mensagem para cliente: "PAZ manda isso pro João: [texto]" → execute\n` +
-    `• Analisar conversa: "PAZ analisa a conversa com o André" → o histórico está disponível acima quando o cliente é mencionado\n` +
+    `• Analisar conversa: "PAZ analisa a conversa com o André" → o histórico aparece acima automaticamente. Se não aparecer, digo que não encontrei (nunca peço para Felipe me contar a conversa)\n` +
     `• Follow-up e inativos: "PAZ quem tá sem resposta?" → olhe a idade dos pendentes e responda com análise\n` +
     `• Pipeline: "PAZ como tá meu pipeline?" → analise os clientes ativos e dê um diagnóstico\n` +
     `• Sugerir abordagem: "PAZ como abordo o cliente que quer visitar?" → dê opinião estratégica\n` +
