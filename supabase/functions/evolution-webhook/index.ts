@@ -178,14 +178,14 @@ const CRM_ATALHOS: Record<string, string> = {
   contato: "contato_iniciado",
   qualificado: "qualificacao",
   qualificacao: "qualificacao",
-  "qualificação": "qualificacao",
+  qualificação: "qualificacao",
   followup: "qualificacao",
   "follow-up": "qualificacao",
   visita: "visita_agendada",
   proposta: "proposta",
   financiamento: "negociacao",
   negociacao: "negociacao",
-  "negociação": "negociacao",
+  negociação: "negociacao",
   vendido: "fechado_ganho",
   ganho: "fechado_ganho",
   fechado_ganho: "fechado_ganho",
@@ -490,7 +490,7 @@ async function executarAcao(params: {
 }): Promise<string> {
   const { sb, ownerId, evolutionConfig, allPending, acao } = params;
 
-  // Tenta encontrar pending pelo nome
+  // ── Tenta encontrar pending pelo nome ────────────────────────────────────────
   let pending: PendingRecord | undefined = undefined;
   if (acao.client_name) {
     pending = allPending.find((p) =>
@@ -505,12 +505,14 @@ async function executarAcao(params: {
     const etapa = normalizarEtapa(acao.etapa ?? "");
     if (!etapa) return "⚠️ Etapa não reconhecida.";
 
+    // Se encontrou pending, usa o client_id de lá
     if (pending) {
       await sb.from("clients").update({ etapa_funil: etapa }).eq("id", pending.client_id);
       await sb.from("ai_pending_responses").update({ status: "skipped" }).eq("id", pending.id);
       return `✅ *${pending.client_name}* → *${CRM_LABELS[etapa] ?? etapa}*`;
     }
 
+    // Senão busca direto na tabela de clientes pelo nome
     if (acao.client_name) {
       const cliente = await buscarClientePorNome(sb, ownerId, acao.client_name);
       if (cliente) {
@@ -525,6 +527,7 @@ async function executarAcao(params: {
 
   // ── ENVIAR_CLIENTE ───────────────────────────────────────────────────────────
   if (acao.tipo === "ENVIAR_CLIENTE") {
+    // Texto pode vir do comando do Felipe ou da sugestão salva
     const texto = acao.texto || pending?.suggested_text;
     if (!texto) return "⚠️ Nenhum texto para enviar.";
 
@@ -547,18 +550,22 @@ async function executarAcao(params: {
       return `✅ Enviado para *${pending.client_name}*`;
     }
 
+    // Tenta buscar cliente pelo nome e pegar o número diretamente
     if (acao.client_name) {
       const cliente = await buscarClientePorNome(sb, ownerId, acao.client_name);
       if (cliente) {
         const phone = (cliente.whatsapp || cliente.telefone || "").replace(/\D/g, "");
         if (!phone) return `⚠️ *${cliente.nome}* não tem número cadastrado.`;
+
         await enviarWhatsApp(evolutionConfig, phone, texto);
+
         const { data: conv } = await sb
           .from("conversations")
           .select("id")
           .eq("client_id", cliente.id)
           .eq("status", "open")
           .maybeSingle();
+
         if (conv) {
           await sb.from("messages").insert({
             conversation_id: conv.id,
@@ -623,10 +630,10 @@ async function paz(params: {
     .limit(5);
   const allPending = (allPendingRaw ?? []) as PendingRecord[];
 
-  // Todos os clientes ativos no CRM
+  // Todos os clientes ativos no CRM (para PAZ saber quem existe)
   const clientesAtivos = await buscarClientesAtivos(sb, ownerId);
 
-  // Contexto de pendentes
+  // ── Contexto de pendentes ────────────────────────────────────────────────────
   let contextoPendentes = "";
   if (allPending.length === 0) {
     contextoPendentes = "\n\n📭 Nenhum cliente aguardando resposta agora.";
@@ -644,7 +651,7 @@ async function paz(params: {
         .join("\n");
   }
 
-  // Contexto do CRM
+  // ── Contexto do CRM ──────────────────────────────────────────────────────────
   let contextoCrm = "";
   if (clientesAtivos.length > 0) {
     contextoCrm =
@@ -654,7 +661,7 @@ async function paz(params: {
         .join("\n");
   }
 
-  // Histórico de conversa de cliente mencionado
+  // ── Histórico de conversa de cliente mencionado ──────────────────────────────
   let historicoCliente = "";
   if (allPending.length > 0) {
     const mencionado = allPending.find((p) =>
@@ -668,6 +675,7 @@ async function paz(params: {
     }
   }
 
+  // ── System prompt ────────────────────────────────────────────────────────────
   const systemPrompt =
     `Você é PAZ — a assistente pessoal do corretor Felipe Paz. ` +
     `Pense em você como uma sócia especialista que vive no WhatsApp do Felipe: sempre presente, inteligente, com opinião própria. ` +
@@ -823,7 +831,7 @@ Deno.serve(async (req) => {
     apiKey: (config?.api_key as string) ?? "",
     baseUrl: (
       (config?.base_url as string) ?? "https://evolution-api-production-448e.up.railway.app"
-    ).replace(/\/$/, ""),
+    ).replace(/\/$/,  ""),
     instance: (config?.instance_name as string) ?? "prime-crm",
   };
 
