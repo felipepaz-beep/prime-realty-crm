@@ -399,12 +399,19 @@ Cliente aguardando decisão:
 • Mensagem dele: "${pending.client_message}"
 • Sugestão de resposta: "${pending.suggested_text}"
 
-Interprete a intenção do Felipe:
-- APROVAÇÃO DE ENVIO (envia, pode, ok, confirmado, vai, manda, perfeito, tá bom, isso mesmo, pode enviar, aprovo, envia isso) → tipo ENVIAR_CLIENTE com o texto da sugestão
-- TEXTO PERSONALIZADO (fala pra ele: X, manda: X, envia: X, responde: X) → tipo ENVIAR_CLIENTE com o texto que Felipe especificou
-- MOVER NO CRM (move pra X, muda pra X, coloca em X, passa pra X, etapa X) → tipo MOVER_CRM
-- IGNORAR (ignora, deixa, não responde, depois, skip) → tipo IGNORAR
-- APENAS CONVERSANDO (pergunta, estratégia, opinião) → tipo CONVERSAR`
+REGRA CRÍTICA: Quando há um cliente pendente, seja GENEROSO ao interpretar aprovação.
+Dúvida → prefira ENVIAR_CLIENTE a CONVERSAR.
+NUNCA peça confirmação dupla — se Felipe disse para enviar, execute imediatamente.
+
+APROVAÇÃO DA SUGESTÃO (use o texto da sugestão): "sim", "ok", "pode", "envia", "manda", "vai", "confirmado", "perfeito", "tá bom", "isso", "isso mesmo", "pode enviar", "aprovo", "envia isso", "manda isso", "responder cliente", "responde", "responder", "responde pra ele", "responde ao cliente"
+
+TEXTO PERSONALIZADO (use o texto que Felipe escreveu após os dois-pontos ou após "fala/manda/envia/responde pro cliente"): "fala pra ele: X", "manda: X", "envia: X", "responde pro cliente X: Y", "fala: X", "di pra ele: X"
+
+MOVER NO CRM: "move pra X", "muda pra X", "coloca em X", "passa pra X", "etapa X"
+
+IGNORAR: "ignora", "deixa", "não responde", "depois", "skip", "pula"
+
+APENAS CONVERSANDO (pergunta sobre estratégia, análise, informação): tipo CONVERSAR`
     : `
 ESTADO: OBSERVANDO — Nenhum cliente aguardando resposta no momento.
 Felipe pode estar pedindo estratégias, informações ou discutindo negociações. → tipo CONVERSAR`;
@@ -552,7 +559,7 @@ Deno.serve(async (req) => {
 
   const evolutionConfig: EvolutionConfig = {
     apiKey: (config?.api_key as string) ?? "",
-    baseUrl: ((config?.base_url as string) ?? "https://evolution-api-production-448e.up.railway.app").replace(/\/$/,  ""),
+    baseUrl: ((config?.base_url as string) ?? "https://evolution-api-production-448e.up.railway.app").replace(/\/$/, ""),
     instance: (config?.instance_name as string) ?? "prime-crm",
   };
 
