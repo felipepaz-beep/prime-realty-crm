@@ -122,7 +122,10 @@ Deno.serve(async (req) => {
     conversationId = existingConv.id;
   } else {
     const { data: newConv, error: convErr } = await supabase.from("conversations").insert({ owner_id: ownerId, client_id: clientId, channel: "whatsapp", status: "open", metadata: { remote_jid: remoteJid } }).select("id").single();
-    if (convErr || !newConv) return new Response("Error creating conversation", { status: 500 });
+    if (convErr || !newConv) {
+      console.error("Erro ao criar conversa:", convErr);
+      return new Response("Error creating conversation", { status: 500 });
+    }
     conversationId = newConv.id;
   }
 
@@ -130,7 +133,10 @@ Deno.serve(async (req) => {
   const sentAt = messageTimestamp ? new Date(messageTimestamp * 1000).toISOString() : new Date().toISOString();
 
   const { error: msgErr } = await supabase.from("messages").insert({ conversation_id: conversationId, direction: "incoming", sender: pushName, type, content, attachment, status: "delivered", sent_at: sentAt, metadata: { provider_msg_id: key?.id, remote_jid: remoteJid } });
-  if (msgErr) return new Response("Error saving message", { status: 500 });
+  if (msgErr) {
+    console.error("Erro ao salvar mensagem:", msgErr);
+    return new Response("Error saving message", { status: 500 });
+  }
 
   // 🤖 DISPARO DA IA: Processa a mensagem em background para responder o cliente
   if (content && evolutionConfig.apiKey) {
