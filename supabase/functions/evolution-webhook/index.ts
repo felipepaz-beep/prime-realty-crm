@@ -45,7 +45,7 @@ interface PendingRecord {
 }
 
 interface AcaoIA {
-  tipo: "ENVIAR_CLIENTE" | "MOVER_CRM" | "IGNORAR" | "CONVERSAR";
+  tipo: "ENVIAR_CLIENTE" | "MOVER_CRM" | "IGNORAR" | "CONVERSAR" | "CRIAR_LEAD";
   texto?: string;
   etapa?: string;
   client_name?: string;
@@ -370,6 +370,34 @@ async function buscarClientePorNome(
   return data ?? null;
 }
 
+// ─── Busca contato desconhecido salvo nas conversas staging ──────────────────
+
+async function buscarContatoNasConversas(
+  sb: SupabaseClient,
+  ownerId: string,
+  nome: string,
+): Promise<{ nome: string; phone: string; conversationId: string } | null> {
+  const { data: convs } = await sb
+    .from("conversations")
+    .select("id, metadata")
+    .eq("owner_id", ownerId)
+    .is("client_id", null)
+    .order("updated_at", { ascending: false })
+    .limit(30);
+
+  const nomeLower = nome.split(" ")[0].toLowerCase();
+  for (const conv of convs ?? []) {
+    const meta = conv.metadata as Record<string, unknown>;
+    const pushName = (meta?.push_name as string) ?? "";
+    if (pushName.toLowerCase().includes(nomeLower)) {
+      const remoteJid = (meta?.remote_jid as string) ?? "";
+      const phone = remoteJid.split("@")[0];
+      if (phone) return { nome: pushName, phone, conversationId: conv.id };
+    }
+  }
+  return null;
+}
+
 // ─── Gera sugestão de resposta ────────────────────────────────────────────────
 
 async function gerarSugestao(
@@ -521,7 +549,7 @@ function normalizarEtapa(raw: string): string {
   const k = raw
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .trim();
   return CRM_ATALHOS[k] ?? k;
 }
@@ -635,6 +663,44 @@ async function executarAcao(params: {
     return `⏭️ *${pending.client_name}* ignorado.`;
   }
 
+  // ── CRIAR_LEAD ────────────────────────────────────────────────────────────────
+  if (acao.tipo === "CRIAR_LEAD") {
+    const nome = acao.client_name;
+    if (!nome) return "⚠️ Me diz o nome do lead pra adicionar.";
+
+    const jaExiste = await buscarClientePorNome(sb, ownerId, nome);
+    if (jaExiste) {
+      return `⚠️ *${jaExiste.nome}* já está no CRM (${CRM_LABELS[jaExiste.etapa_funil ?? ""] ?? "Lead"}).`;
+    }
+
+    const contato = await buscarContatoNasConversas(sb, ownerId, nome);
+    if (!contato) {
+      return `⚠️ Não encontrei *${nome}* nas conversas do WhatsApp. Ele precisa te mandar uma mensagem primeiro.`;
+    }
+
+    const { data: novoCliente, error: createErr } = await sb
+      .from("clients")
+      .insert({
+        owner_id: ownerId,
+        nome: contato.nome,
+        whatsapp: contato.phone,
+        etapa_funil: "novo_lead",
+      })
+      .select("id")
+      .single();
+
+    if (createErr || !novoCliente) {
+      return `⚠️ Erro ao criar lead: ${createErr?.message ?? "desconhecido"}`;
+    }
+
+    await sb
+      .from("conversations")
+      .update({ client_id: novoCliente.id })
+      .eq("id", contato.conversationId);
+
+    return `✅ *${contato.nome}* adicionado como Novo Lead!\n📱 +${contato.phone}`;
+  }
+
   return "";
 }
 
@@ -676,6 +742,19 @@ async function paz(params: {
 
   // Todos os clientes ativos no CRM (para PAZ saber quem existe)
   const clientesAtivos = await buscarClientesAtivos(sb, ownerId);
+
+  // Contatos que mandaram mensagem mas ainda não estão no CRM
+  const { data: rawUnknown } = await sb
+    .from("conversations")
+    .select("metadata")
+    .eq("owner_id", ownerId)
+    .is("client_id", null)
+    .order("updated_at", { ascending: false })
+    .limit(10);
+
+  const contatosDesconhecidos = (rawUnknown ?? [])
+    .map((c) => c.metadata as Record<string, unknown>)
+    .filter((m) => m?.push_name);
 
   // ── Contexto de pendentes (com idade para PAZ sugerir follow-ups) ────────────
   const agora = Date.now();
@@ -749,38 +828,47 @@ async function paz(params: {
     }
   }
 
+  // ── Contexto de contatos sem cadastro no CRM ─────────────────────────────────
+  let contextoDesconhecidos = "";
+  if (contatosDesconhecidos.length > 0) {
+    const linhas = contatosDesconhecidos.map(
+      (m) => `• *${m.push_name}* (+${(m.remote_jid as string)?.split("@")[0] ?? "?"})`,
+    );
+    contextoDesconhecidos =
+      `\n\n📥 *Contatos no WhatsApp sem cadastro no CRM:*\n` + linhas.join("\n");
+  }
+
   // ── System prompt ────────────────────────────────────────────────────────────
   const systemPrompt =
     `Você é PAZ — a assistente pessoal do corretor Felipe Paz no WhatsApp.\n\n` +
     `Você não é um bot de comandos. É a sócia inteligente do Felipe que vive no WhatsApp dele. ` +
-    `Conversa, analisa, opina e executa — nessa ordem.\n\n` +
-    `CAPACIDADES (tudo que você sabe fazer):\n` +
+    `Felipe te dá comandos e você executa no CRM — nunca age por conta própria.\n\n` +
+    `CAPACIDADES:\n` +
+    `• Adicionar lead: "PAZ adiciona Michel" → busca Michel nos contatos do WhatsApp (lista acima) e cria no CRM\n` +
     `• Mover cliente no CRM: "PAZ move o André pra qualificação" → execute\n` +
     `• Enviar mensagem para cliente: "PAZ manda isso pro João: [texto]" → execute\n` +
     `• Analisar conversa: "PAZ analisa a conversa com o André" → o histórico aparece acima automaticamente. Se não aparecer, digo que não encontrei (nunca peço para Felipe me contar a conversa)\n` +
-    `• Follow-up e inativos: "PAZ quem tá sem resposta?" → olhe a idade dos pendentes e responda com análise\n` +
+    `• Pendentes: "PAZ pendentes" ou "PAZ quem tá sem resposta?" → liste os clientes aguardando + há quantos dias\n` +
     `• Pipeline: "PAZ como tá meu pipeline?" → analise os clientes ativos e dê um diagnóstico\n` +
     `• Sugerir abordagem: "PAZ como abordo o cliente que quer visitar?" → dê opinião estratégica\n` +
     `• Montar mensagem: "PAZ monta uma mensagem perguntando sobre financiamento" → crie o texto\n` +
     `• Qualquer papo de negócio imobiliário: estratégia, negociação, precificação, timing\n\n` +
     `REGRA DE EXECUÇÃO — CRÍTICA:\n` +
-    `Quando Felipe pedir uma ação, EXECUTE e diga claramente o que está fazendo no texto:\n` +
-    `✓ "Movendo Andre Luis para Qualificação agora." (não "Tudo certo! Como posso ajudar?")\n` +
-    `✓ "Enviando para o João: [texto]"\n` +
-    `"sim", "ok", "pode", "vai", "manda", "faz" = execute imediatamente, sem pedir confirmação.\n\n` +
-    `REGRA DE NOTIFICAÇÃO:\n` +
-    `O sistema já notifica Felipe UMA VEZ quando cliente manda mensagem. Novas mensagens do mesmo cliente atualizam silenciosamente o registro — Felipe não recebe spam. ` +
-    `Quando Felipe age (envia ou ignora), o ciclo recomeça.\n\n` +
+    `Quando Felipe pedir uma ação, EXECUTE e diga claramente o que está fazendo:\n` +
+    `✓ "Adicionando Michel como Novo Lead agora." (não "Tudo certo! Como posso ajudar?")\n` +
+    `✓ "Movendo Andre Luis para Qualificação."\n` +
+    `"sim", "ok", "pode", "vai", "manda", "faz", "adiciona" = execute imediatamente, sem pedir confirmação.\n\n` +
     `REGRA DE CADASTRO:\n` +
-    `Número desconhecido → sistema notifica Felipe e AGUARDA seu comando. Nunca cria lead automaticamente.\n` +
-    `Quando Felipe disser "PAZ adiciona [nome]" ou "PAZ cria esse lead como [nome]" → execute CRIAR_LEAD com o nome e número.\n` +
-    `Você nunca cria, move ou altera CRM por conta própria — só quando Felipe mandar explicitamente.\n` +
+    `Você NUNCA cria lead sozinha — só quando Felipe mandar explicitamente.\n` +
+    `"PAZ adiciona [nome]" → execute CRIAR_LEAD com o nome. O sistema busca o contato no WhatsApp.\n` +
+    `Se o contato não aparecer na lista de "Contatos sem cadastro", avise Felipe que ele precisa mandar uma mensagem primeiro.\n\n` +
     contextoPendentes +
     contextoCrm +
+    contextoDesconhecidos +
     historicoCliente +
     `\n\n` +
     `Quando for executar uma ação, inclua ao final (Felipe não vê):\n` +
-    `<ACAO>{"tipo":"ENVIAR_CLIENTE"|"MOVER_CRM"|"IGNORAR"|"CONVERSAR","client_name":"nome","texto":"(só ENVIAR_CLIENTE)","etapa":"contato|qualificado|visita|proposta|negociacao|vendido|perdido (só MOVER_CRM)","motivo":"..."}</ACAO>`;
+    `<ACAO>{"tipo":"ENVIAR_CLIENTE"|"MOVER_CRM"|"IGNORAR"|"CONVERSAR"|"CRIAR_LEAD","client_name":"nome","texto":"(só ENVIAR_CLIENTE)","etapa":"contato|qualificado|visita|proposta|negociacao|vendido|perdido (só MOVER_CRM)","motivo":"..."}</ACAO>`;
 
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -991,46 +1079,100 @@ Deno.serve(async (req) => {
 
   if (!clientData) {
     // Número desconhecido — NÃO cria lead automaticamente
-    // Notifica Felipe UMA VEZ e aguarda seu comando
     if (!content) return new Response("OK", { status: 200 });
 
     const fone = `+${rawPhone}`;
-    const openaiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
-    let sugestao = "";
-    if (openaiKey) {
-      try {
-        const r = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            max_tokens: 100,
-            messages: [
-              { role: "system", content: "Sugira uma resposta de primeiro atendimento como corretor Felipe Paz. Breve, natural, máximo 2 linhas." },
-              { role: "user", content: `Número desconhecido (${fone}): "${content}"\n\nSugira uma resposta:` },
-            ],
-          }),
-        });
-        if (r.ok) {
-          const j = (await r.json()) as { choices?: Array<{ message?: { content?: string } }> };
-          sugestao = j.choices?.[0]?.message?.content?.trim() ?? "";
-        }
-      } catch { /* ignora */ }
+
+    // Busca ou cria conversa staging para este contato (necessário para "PAZ adiciona [nome]")
+    const { data: allUnknownConvs } = await supabase
+      .from("conversations")
+      .select("id, metadata")
+      .eq("owner_id", ownerId)
+      .is("client_id", null);
+
+    const existingUnknownConv = (allUnknownConvs ?? []).find(
+      (c) => (c.metadata as Record<string, unknown>)?.remote_jid === remoteJid,
+    );
+
+    let unknownConvId: string | null = null;
+    const isPrimeiroContatoDesconhecido = !existingUnknownConv;
+
+    if (existingUnknownConv) {
+      unknownConvId = existingUnknownConv.id;
+    } else {
+      const { data: newUnknownConv } = await supabase
+        .from("conversations")
+        .insert({
+          owner_id: ownerId,
+          client_id: null,
+          channel: "whatsapp",
+          status: "open",
+          metadata: { remote_jid: remoteJid, push_name: pushName, unknown_contact: true },
+        })
+        .select("id")
+        .single()
+        .catch(() => ({ data: null, error: null }));
+      unknownConvId = (newUnknownConv as { id: string } | null)?.id ?? null;
     }
 
-    const notif =
-      `📱 *Número desconhecido*\n${fone}\n\n` +
-      `"${content}"` +
-      (sugestao ? `\n\n💬 *PAZ sugere:*\n"${sugestao}"` : "") +
-      `\n\n_Responda "PAZ adiciona [nome]" para criar no CRM ou ignore._`;
+    // Salva mensagem na conversa staging
+    if (unknownConvId) {
+      const sentAt = messageTimestamp
+        ? new Date(messageTimestamp * 1000).toISOString()
+        : new Date().toISOString();
+      await supabase
+        .from("messages")
+        .insert({
+          conversation_id: unknownConvId,
+          direction: "incoming",
+          sender: pushName,
+          type,
+          content,
+          attachment,
+          status: "delivered",
+          sent_at: sentAt,
+          metadata: { provider_msg_id: key?.id, remote_jid: remoteJid },
+        })
+        .catch((err) => console.warn("[WEBHOOK] Erro ao salvar msg desconhecido:", err));
+    }
 
-    if (evolutionConfig.apiKey) {
+    // Notifica Felipe apenas na primeira mensagem deste contato (sem spam)
+    if (isPrimeiroContatoDesconhecido && evolutionConfig.apiKey) {
+      const openaiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
+      let sugestao = "";
+      if (openaiKey) {
+        try {
+          const r = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "gpt-4o-mini",
+              max_tokens: 100,
+              messages: [
+                { role: "system", content: "Sugira uma resposta de primeiro atendimento como corretor Felipe Paz. Breve, natural, máximo 2 linhas." },
+                { role: "user", content: `Número desconhecido (${fone}): "${content}"\n\nSugira uma resposta:` },
+              ],
+            }),
+          });
+          if (r.ok) {
+            const j = (await r.json()) as { choices?: Array<{ message?: { content?: string } }> };
+            sugestao = j.choices?.[0]?.message?.content?.trim() ?? "";
+          }
+        } catch { /* ignora */ }
+      }
+
+      const notif =
+        `📱 *Novo contato: ${pushName}*\n${fone}\n\n` +
+        `"${content}"` +
+        (sugestao ? `\n\n💬 *PAZ sugere:*\n"${sugestao}"` : "") +
+        `\n\n_Diga "PAZ adiciona ${pushName}" para criar no CRM._`;
+
       enviarWhatsApp(evolutionConfig, FELIPE_PHONE, notif).catch((err) =>
         console.error("[WEBHOOK] Erro ao notificar número desconhecido:", err),
       );
     }
 
-    console.log(`[WEBHOOK] número desconhecido notificado: ${rawPhone}`);
+    console.log(`[WEBHOOK] contato desconhecido ${isPrimeiroContatoDesconhecido ? "novo" : "msg adicional"}: ${rawPhone} (${pushName})`);
     return new Response("OK", { status: 200 });
   }
 
