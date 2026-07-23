@@ -96,11 +96,9 @@ function extractMessage(message: Record<string, unknown>): ExtractedMessage {
     const doc = (
       message.documentMessage ||
       (
-        (
-          (message.documentWithCaptionMessage as Record<string, unknown>)
-            ?.message as Record<string, unknown>
-        )?.documentMessage
-      )
+        (message.documentWithCaptionMessage as Record<string, unknown>)
+          ?.message as Record<string, unknown>
+      )?.documentMessage
     ) as Record<string, unknown>;
     return {
       content: (doc?.caption as string) || null,
@@ -224,6 +222,96 @@ async function buscarHistoricoConversa(
     .join("\n");
 }
 
+// ─── Conversa PAZ: histórico Felipe ↔ PAZ (para contexto entre mensagens) ────
+
+async function buscarOuCriarConversaPaz(
+  sb: SupabaseClient,
+  ownerId: string,
+): Promise<string | null> {
+  try {
+    // Procura cliente-placeholder PAZ (inclusive soft-deleted)
+    const { data: pazClient } = await sb
+      .from("clients")
+      .select("id")
+      .eq("owner_id", ownerId)
+      .contains("tags", ["_paz_system_"])
+      .limit(1)
+      .maybeSingle();
+
+    let pazClientId: string;
+
+    if (pazClient) {
+      pazClientId = pazClient.id;
+    } else {
+      const { data: newClient } = await sb
+        .from("clients")
+        .insert({
+          owner_id: ownerId,
+          nome: "PAZ (Sistema)",
+          etapa_funil: "novo_lead",
+          tags: ["_paz_system_"],
+        })
+        .select("id")
+        .single();
+      if (!newClient) return null;
+      pazClientId = newClient.id;
+      // Soft-delete para não aparecer na lista de clientes do CRM
+      await sb
+        .from("clients")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", pazClientId);
+    }
+
+    // Procura conversa PAZ existente
+    const { data: existingConv } = await sb
+      .from("conversations")
+      .select("id")
+      .eq("client_id", pazClientId)
+      .maybeSingle();
+
+    if (existingConv) return existingConv.id;
+
+    // Cria conversa PAZ
+    const { data: newConv } = await sb
+      .from("conversations")
+      .insert({
+        owner_id: ownerId,
+        client_id: pazClientId,
+        channel: "whatsapp",
+        status: "open",
+        metadata: { paz_self_chat: true },
+      })
+      .select("id")
+      .single();
+
+    return newConv?.id ?? null;
+  } catch (err) {
+    console.warn("[PAZ] Erro ao criar conversa histórico:", err);
+    return null;
+  }
+}
+
+async function buscarHistoricoPazMessages(
+  sb: SupabaseClient,
+  conversationId: string,
+  limite = 10,
+): Promise<Array<{ role: "user" | "assistant"; content: string }>> {
+  const { data } = await sb
+    .from("messages")
+    .select("direction, content")
+    .eq("conversation_id", conversationId)
+    .order("sent_at", { ascending: false })
+    .limit(limite);
+
+  return (data ?? [])
+    .reverse()
+    .map((m) => ({
+      role: (m.direction === "incoming" ? "user" : "assistant") as "user" | "assistant",
+      content: (m.content ?? "") as string,
+    }))
+    .filter((m) => m.content.length > 0);
+}
+
 // ─── Gera sugestão de resposta ────────────────────────────────────────────────
 
 async function gerarSugestao(
@@ -263,7 +351,7 @@ async function gerarSugestao(
   }
 }
 
-// ─── Notifica Felipe quando cliente manda mensagem ───────────────────────
+// ─── Notifica Felipe quando cliente manda mensagem ───────────────────────────
 
 async function processarMensagemIa(params: {
   sb: SupabaseClient;
@@ -294,6 +382,7 @@ async function processarMensagemIa(params: {
       : await buscarHistoricoConversa(sb, conversationId, 8);
     const sugestao = await gerarSugestao(mensagem, clienteNome, historico, isPrimeiroContato);
 
+    // Busca etapa atual do cliente
     const { data: clienteInfo } = await sb
       .from("clients")
       .select("etapa_funil")
@@ -322,7 +411,7 @@ async function processarMensagemIa(params: {
   }
 }
 
-// ─── Parse da ação estruturada ────────────────────────────────────────────────────
+// ─── Parse da ação estruturada ────────────────────────────────────────────────
 
 function parsearAcaoIA(resposta: string): { texto: string; acao: AcaoIA | null } {
   const match = resposta.match(/<ACAO>([\s\S]*?)<\/ACAO>/);
@@ -338,7 +427,7 @@ function parsearAcaoIA(resposta: string): { texto: string; acao: AcaoIA | null }
   }
 }
 
-// ─── Executa ação ──────────────────────────────────────────────────────────────────
+// ─── Executa ação ─────────────────────────────────────────────────────────────
 
 async function executarAcao(params: {
   sb: SupabaseClient;
@@ -348,6 +437,7 @@ async function executarAcao(params: {
 }): Promise<string> {
   const { sb, evolutionConfig, allPending, acao } = params;
 
+  // Seleciona o cliente alvo (por nome se especificado, senão o mais recente)
   let pending = allPending[0];
   if (acao.client_name && allPending.length > 1) {
     const match = allPending.find((p) =>
@@ -387,7 +477,7 @@ async function executarAcao(params: {
     const etapaRaw = (acao.etapa ?? "")
       .toLowerCase()
       .normalize("NFD")
-      .replace(/[̀-ͯ]/g, "");
+      .replace(/[\u0300-\u036f]/g, "");
     const etapa = CRM_ATALHOS[etapaRaw] ?? etapaRaw;
 
     await sb.from("clients").update({ etapa_funil: etapa }).eq("id", pending.client_id);
@@ -404,14 +494,15 @@ async function executarAcao(params: {
   return "";
 }
 
-// ─── PAZ: assistente de vendas do Felipe ─────────────────────────────────────────
+// ─── PAZ: assistente de vendas do Felipe ─────────────────────────────────────
 
 async function paz(params: {
   sb: SupabaseClient;
   mensagem: string;
   evolutionConfig: EvolutionConfig;
+  ownerId: string | null;
 }): Promise<void> {
-  const { sb, mensagem, evolutionConfig } = params;
+  const { sb, mensagem, evolutionConfig, ownerId } = params;
 
   const openaiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
   if (!openaiKey) {
@@ -419,6 +510,17 @@ async function paz(params: {
     return;
   }
 
+  // Histórico de conversa Felipe ↔ PAZ (memória entre mensagens)
+  let pazConversationId: string | null = null;
+  let historicoFelipePaz: Array<{ role: "user" | "assistant"; content: string }> = [];
+  if (ownerId) {
+    pazConversationId = await buscarOuCriarConversaPaz(sb, ownerId);
+    if (pazConversationId) {
+      historicoFelipePaz = await buscarHistoricoPazMessages(sb, pazConversationId, 10);
+    }
+  }
+
+  // Busca todos os clientes pendentes (até 5)
   const { data: allPendingRaw } = await sb
     .from("ai_pending_responses")
     .select("*")
@@ -428,9 +530,10 @@ async function paz(params: {
 
   const allPending = (allPendingRaw ?? []) as PendingRecord[];
 
+  // Monta contexto de clientes pendentes
   let contextoPendentes = "";
   if (allPending.length === 0) {
-    contextoPendentes = "\n\n💭 Nenhum cliente aguardando resposta no momento.";
+    contextoPendentes = "\n\n📭 Nenhum cliente aguardando resposta no momento.";
   } else if (allPending.length === 1) {
     const p = allPending[0];
     contextoPendentes =
@@ -448,13 +551,15 @@ async function paz(params: {
         .join("\n");
   }
 
+  // Busca histórico da conversa com cliente específico se mencionado
   let historicoCliente = "";
   if (allPending.length > 0) {
     const nomesMencionados = allPending.filter((p) =>
       mensagem.toLowerCase().includes(p.client_name.toLowerCase().split(" ")[0]),
     );
     if (nomesMencionados.length > 0) {
-      const hist = await buscarHistoricoConversa(sb, nomesMencionados[0].conversation_id, 15);
+      const conversaId = nomesMencionados[0].conversation_id;
+      const hist = await buscarHistoricoConversa(sb, conversaId, 15);
       if (hist) {
         historicoCliente = `\n\n📝 *Histórico da conversa com ${nomesMencionados[0].client_name}:*\n${hist}`;
       }
@@ -478,13 +583,17 @@ async function paz(params: {
     `REGRAS INVIOLÁVEIS:\n` +
     `1. NUNCA envie mensagem ao cliente sem aprovação explícita do Felipe\n` +
     `2. NUNCA altere o CRM sem aprovação explícita do Felipe\n` +
-    `3. Sempre apresente o que vai fazer antes de executar` +
+    `3. Comando direto de Felipe = aprovação explícita. Se Felipe diz "muda", "move", "adiciona", "envia", "responde", "faz", "manda" — EXECUTE IMEDIATAMENTE com a ação estruturada\n` +
+    `4. NUNCA pergunte "Quer que eu faça?" ou "Posso prosseguir?" — se Felipe pediu, já é a aprovação. Execute.\n` +
+    `5. "sim", "ok", "pode", "vai", "faz", "confirma" após você propor algo = EXECUTE a ação proposta imediatamente\n` +
     contextoPendentes +
     historicoCliente +
     `\n\n` +
-    `QUANDO FELIPE APROVAR UMA AÇÃO (envia, manda, pode, sim, ok, confirmado, vai, perfeito, tá bom, faz isso, executa, responde, responde pra ele, responde ao cliente, adiciona, move, muda) — use tipo ENVIAR_CLIENTE, MOVER_CRM ou IGNORAR.\n` +
-    `QUANDO Felipe der texto personalizado ("fala pra ele X", "manda: X", "responde assim: X") — use ENVIAR_CLIENTE com esse texto.\n` +
-    `QUANDO Felipe pede análise, opinião ou está discutindo — use CONVERSAR.\n` +
+    `REGRAS DE AÇÃO:\n` +
+    `• Felipe dá comando direto ("muda", "move", "adiciona no crm", "envia", "responde", "manda") → use MOVER_CRM ou ENVIAR_CLIENTE DIRETAMENTE, sem perguntar\n` +
+    `• Felipe confirma ("sim", "ok", "pode", "vai", "confirma") após você propor → EXECUTE a ação proposta com MOVER_CRM ou ENVIAR_CLIENTE\n` +
+    `• Felipe dá texto customizado ("fala pra ele X", "manda: X", "responde assim: X") → ENVIAR_CLIENTE com esse texto exato\n` +
+    `• Felipe pede análise, opinião ou está discutindo → CONVERSAR\n` +
     `\n` +
     `SEMPRE inclua ao final da resposta:\n` +
     `<ACAO>\n` +
@@ -506,6 +615,7 @@ async function paz(params: {
         max_tokens: 700,
         messages: [
           { role: "system", content: systemPrompt },
+          ...historicoFelipePaz,
           { role: "user", content: mensagem },
         ],
       }),
@@ -520,6 +630,36 @@ async function paz(params: {
     const respostaCompleta = json.choices?.[0]?.message?.content?.trim() ?? "";
 
     const { texto, acao } = parsearAcaoIA(respostaCompleta);
+
+    // Salva troca Felipe ↔ PAZ para memória entre mensagens
+    if (pazConversationId) {
+      const now = new Date().toISOString();
+      await sb
+        .from("messages")
+        .insert([
+          {
+            conversation_id: pazConversationId,
+            direction: "incoming",
+            sender: "Felipe",
+            type: "text",
+            content: mensagem,
+            status: "delivered",
+            sent_at: now,
+            metadata: { source: "paz-self-chat" },
+          },
+          {
+            conversation_id: pazConversationId,
+            direction: "outgoing",
+            sender: "PAZ",
+            type: "text",
+            content: texto || respostaCompleta,
+            status: "delivered",
+            sent_at: now,
+            metadata: { source: "paz-response" },
+          },
+        ])
+        .catch((err) => console.warn("[PAZ] Erro ao salvar histórico:", err));
+    }
 
     if (texto) {
       await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, texto);
@@ -589,7 +729,7 @@ Deno.serve(async (req) => {
     apiKey: (config?.api_key as string) ?? "",
     baseUrl: (
       (config?.base_url as string) ?? "https://evolution-api-production-448e.up.railway.app"
-    ).replace(/\/$/, ""),
+    ).replace(/\/$/,  ""),
     instance: (config?.instance_name as string) ?? "prime-crm",
   };
 
@@ -601,7 +741,7 @@ Deno.serve(async (req) => {
   if (isSelfChat) {
     console.log(`[WEBHOOK] Felipe → PAZ: "${content}"`);
     if (content) {
-      paz({ sb: supabase, mensagem: content, evolutionConfig }).catch((err) =>
+      paz({ sb: supabase, mensagem: content, evolutionConfig, ownerId }).catch((err) =>
         console.error("[WEBHOOK] Erro PAZ:", err),
       );
     }
