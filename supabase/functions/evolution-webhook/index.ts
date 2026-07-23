@@ -8,7 +8,7 @@ const supabase = createClient(
 
 const FELIPE_PHONE = Deno.env.get("OWNER_PHONE") || "5551997775943";
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+// ─── Tipos ────────────────────────────────────────────────────────────────────────────
 
 type MessageType =
   | "text"
@@ -52,7 +52,7 @@ interface AcaoIA {
   motivo?: string;
 }
 
-// ─── Extração de mensagem ─────────────────────────────────────────────────────
+// ─── Extração de mensagem ──────────────────────────────────────────────────────────
 
 function extractMessage(message: Record<string, unknown>): ExtractedMessage {
   if (!message) return { content: null, type: "text", attachment: null };
@@ -97,9 +97,11 @@ function extractMessage(message: Record<string, unknown>): ExtractedMessage {
       message.documentMessage ||
       (
         (
-          (message.documentWithCaptionMessage as Record<string, unknown>)
-            ?.message as Record<string, unknown>
-        )?.documentMessage
+          (
+            (message.documentWithCaptionMessage as Record<string, unknown>)
+              ?.message as Record<string, unknown>
+          )?.documentMessage
+        )
       )
     ) as Record<string, unknown>;
     return {
@@ -140,7 +142,7 @@ function extractMessage(message: Record<string, unknown>): ExtractedMessage {
   return { content: "[mensagem não suportada]", type: "text", attachment: null };
 }
 
-// ─── Utilitários de telefone ──────────────────────────────────────────────────
+// ─── Utilitários de telefone ──────────────────────────────────────────────────────
 
 function normalizePhone(raw: string): string[] {
   const digits = raw.replace(/\D/g, "");
@@ -152,7 +154,7 @@ function normalizePhone(raw: string): string[] {
   return variants;
 }
 
-// ─── Evolution API ────────────────────────────────────────────────────────────
+// ─── Evolution API ────────────────────────────────────────────────────────────────
 
 async function enviarWhatsApp(
   config: EvolutionConfig,
@@ -174,7 +176,7 @@ async function enviarWhatsApp(
   }
 }
 
-// ─── CRM ─────────────────────────────────────────────────────────────────────
+// ─── CRM ─────────────────────────────────────────────────────────────────────────────
 
 const CRM_ATALHOS: Record<string, string> = {
   contato: "contato_iniciado",
@@ -206,7 +208,7 @@ const CRM_LABELS: Record<string, string> = {
   fechado_perdido: "Perdido ❌",
 };
 
-// ─── Busca histórico da conversa com o cliente ────────────────────────────────
+// ─── Busca histórico da conversa com o cliente ────────────────────────────────────────────
 
 async function buscarHistoricoConversa(
   sb: SupabaseClient,
@@ -226,7 +228,7 @@ async function buscarHistoricoConversa(
     .join("\n");
 }
 
-// ─── Conversa PAZ: histórico Felipe ↔ PAZ (memória entre mensagens) ──────────
+// ─── Conversa PAZ: histórico Felipe ↔ PAZ (memória entre mensagens) ──────────────────
 
 async function buscarOuCriarConversaPaz(
   sb: SupabaseClient,
@@ -326,7 +328,7 @@ async function buscarHistoricoPazMessages(
     .filter((m) => m.content.length > 0);
 }
 
-// ─── Clientes ativos no CRM ───────────────────────────────────────────────────
+// ─── Clientes ativos no CRM ──────────────────────────────────────────────────────────────
 
 async function buscarClientesAtivos(
   sb: SupabaseClient,
@@ -344,7 +346,7 @@ async function buscarClientesAtivos(
   return (data ?? []) as Array<{ nome: string; etapa_funil: string }>;
 }
 
-// ─── Busca cliente pelo nome no CRM ──────────────────────────────────────────
+// ─── Busca cliente pelo nome no CRM ─────────────────────────────────────────────────────
 
 async function buscarClientePorNome(
   sb: SupabaseClient,
@@ -370,13 +372,14 @@ async function buscarClientePorNome(
   return data ?? null;
 }
 
-// ─── Busca contato desconhecido salvo nas conversas staging ──────────────────
+// ─── Busca contato desconhecido salvo nas conversas staging ────────────────────────
 
 async function buscarContatoNasConversas(
   sb: SupabaseClient,
-  ownerId: string,
+  ownerId: string | null,
   nome: string,
 ): Promise<{ nome: string; phone: string; conversationId: string } | null> {
+  if (!ownerId) return null;
   const { data: convs } = await sb
     .from("conversations")
     .select("id, metadata")
@@ -398,7 +401,7 @@ async function buscarContatoNasConversas(
   return null;
 }
 
-// ─── Gera sugestão de resposta ────────────────────────────────────────────────
+// ─── Gera sugestão de resposta ──────────────────────────────────────────────────────────────
 
 async function gerarSugestao(
   mensagem: string,
@@ -437,7 +440,7 @@ async function gerarSugestao(
   }
 }
 
-// ─── Notifica Felipe quando cliente manda mensagem ───────────────────────────
+// ─── Notifica Felipe quando cliente manda mensagem ─────────────────────────────────────────
 
 async function processarMensagemIa(params: {
   sb: SupabaseClient;
@@ -527,7 +530,7 @@ async function processarMensagemIa(params: {
   }
 }
 
-// ─── Parse da ação estruturada ────────────────────────────────────────────────
+// ─── Parse da ação estruturada ───────────────────────────────────────────────────────────────
 
 function parsearAcaoIA(resposta: string): { texto: string; acao: AcaoIA | null } {
   const match = resposta.match(/<ACAO>([\s\S]*?)<\/ACAO>/);
@@ -543,7 +546,7 @@ function parsearAcaoIA(resposta: string): { texto: string; acao: AcaoIA | null }
   }
 }
 
-// ─── Normaliza etapa CRM ──────────────────────────────────────────────────────
+// ─── Normaliza etapa CRM ───────────────────────────────────────────────────────────────────
 
 function normalizarEtapa(raw: string): string {
   const k = raw
@@ -554,7 +557,7 @@ function normalizarEtapa(raw: string): string {
   return CRM_ATALHOS[k] ?? k;
 }
 
-// ─── Executa ação — busca cliente em pending OU diretamente no CRM ────────────
+// ─── Executa ação — busca cliente em pending OU diretamente no CRM ──────────────────────
 
 async function executarAcao(params: {
   sb: SupabaseClient;
@@ -565,7 +568,7 @@ async function executarAcao(params: {
 }): Promise<string> {
   const { sb, ownerId, evolutionConfig, allPending, acao } = params;
 
-  // ── Tenta encontrar pending pelo nome ────────────────────────────────────────
+  // ── Tenta encontrar pending pelo nome ──────────────────────────────────────────────────────────────────
   let pending: PendingRecord | undefined = undefined;
   if (acao.client_name) {
     pending = allPending.find((p) =>
@@ -575,7 +578,7 @@ async function executarAcao(params: {
     pending = allPending[0];
   }
 
-  // ── MOVER_CRM ────────────────────────────────────────────────────────────────
+  // ── MOVER_CRM ────────────────────────────────────────────────────────────────────────────────
   if (acao.tipo === "MOVER_CRM") {
     const etapa = normalizarEtapa(acao.etapa ?? "");
     if (!etapa) return "⚠️ Etapa não reconhecida.";
@@ -598,7 +601,7 @@ async function executarAcao(params: {
     return "⚠️ Nenhum cliente identificado para mover.";
   }
 
-  // ── ENVIAR_CLIENTE ───────────────────────────────────────────────────────────
+  // ── ENVIAR_CLIENTE ───────────────────────────────────────────────────────────────────────────
   if (acao.tipo === "ENVIAR_CLIENTE") {
     const texto = acao.texto || pending?.suggested_text;
     if (!texto) return "⚠️ Nenhum texto para enviar.";
@@ -657,13 +660,13 @@ async function executarAcao(params: {
     return "⚠️ Nenhum cliente pendente para enviar mensagem.";
   }
 
-  // ── IGNORAR ──────────────────────────────────────────────────────────────────
+  // ── IGNORAR ──────────────────────────────────────────────────────────────────────────────────────
   if (acao.tipo === "IGNORAR" && pending) {
     await sb.from("ai_pending_responses").update({ status: "skipped" }).eq("id", pending.id);
     return `⏭️ *${pending.client_name}* ignorado.`;
   }
 
-  // ── CRIAR_LEAD ────────────────────────────────────────────────────────────────
+  // ── CRIAR_LEAD ──────────────────────────────────────────────────────────────────────────────────
   if (acao.tipo === "CRIAR_LEAD") {
     const nome = acao.client_name;
     if (!nome) return "⚠️ Me diz o nome do lead pra adicionar.";
@@ -673,17 +676,15 @@ async function executarAcao(params: {
       return `⚠️ *${jaExiste.nome}* já está no CRM (${CRM_LABELS[jaExiste.etapa_funil ?? ""] ?? "Lead"}).`;
     }
 
+    // Tenta vincular ao contato já existente no WhatsApp (staging)
     const contato = await buscarContatoNasConversas(sb, ownerId, nome);
-    if (!contato) {
-      return `⚠️ Não encontrei *${nome}* nas conversas do WhatsApp. Ele precisa te mandar uma mensagem primeiro.`;
-    }
 
     const { data: novoCliente, error: createErr } = await sb
       .from("clients")
       .insert({
         owner_id: ownerId,
-        nome: contato.nome,
-        whatsapp: contato.phone,
+        nome: contato?.nome ?? nome,
+        whatsapp: contato?.phone ?? null,
         etapa_funil: "novo_lead",
       })
       .select("id")
@@ -693,18 +694,89 @@ async function executarAcao(params: {
       return `⚠️ Erro ao criar lead: ${createErr?.message ?? "desconhecido"}`;
     }
 
-    await sb
-      .from("conversations")
-      .update({ client_id: novoCliente.id })
-      .eq("id", contato.conversationId);
+    if (contato) {
+      await sb
+        .from("conversations")
+        .update({ client_id: novoCliente.id })
+        .eq("id", contato.conversationId);
+      return `✅ *${contato.nome}* adicionado como Novo Lead!\n📱 +${contato.phone}`;
+    }
 
-    return `✅ *${contato.nome}* adicionado como Novo Lead!\n📱 +${contato.phone}`;
+    return (
+      `✅ *${nome}* adicionado como Novo Lead!\n` +
+      `📌 _Sem número ainda — quando ele te mandar mensagem o WhatsApp vincula automático._`
+    );
   }
 
   return "";
 }
 
-// ─── PAZ: assistente de vendas do Felipe ─────────────────────────────────────
+// ─── Detecção direta de comandos (bypass da IA para comandos simples) ─────────────────
+
+async function executarComandoDireto(params: {
+  sb: SupabaseClient;
+  ownerId: string | null;
+  evolutionConfig: EvolutionConfig;
+  mensagem: string;
+  allPending: PendingRecord[];
+}): Promise<string | null> {
+  const { sb, ownerId, evolutionConfig, mensagem, allPending } = params;
+  const msg = mensagem.trim();
+
+  // "adicione/adiciona [nome] [no crm]" ou "paz adiciona [nome]"
+  const mCriar = msg.match(
+    /^(?:paz\s+)?(?:adicione?|adiciona(?:r)?)\s+(.+?)(?:\s+(?:no|ao)\s+(?:crm|sistema))?$/i,
+  );
+  if (mCriar) {
+    const nome = mCriar[1].replace(/\s+(?:no|ao)\s+(?:crm|sistema)\s*$/i, "").trim();
+    if (nome) {
+      return executarAcao({ sb, ownerId, evolutionConfig, allPending, acao: { tipo: "CRIAR_LEAD", client_name: nome } });
+    }
+  }
+
+  // "move/mova [nome] para/pra [etapa]" ou "paz move..."
+  const mMover = msg.match(
+    /^(?:paz\s+)?(?:mov[ae](?:r)?|muda)\s+(?:o\s+|a\s+)?(.+?)\s+(?:para?|pra)\s+(.+?)$/i,
+  );
+  if (mMover) {
+    const [, nomeCliente, etapaRaw] = mMover;
+    return executarAcao({ sb, ownerId, evolutionConfig, allPending, acao: { tipo: "MOVER_CRM", client_name: nomeCliente.trim(), etapa: etapaRaw.trim() } });
+  }
+
+  // "quais os clientes / lista clientes / meus clientes / clientes no crm"
+  if (
+    /(?:quais|list[ae]|me\s+(?:diz|fala|mostra))\s+(?:os\s+|meus\s+)?clientes|clientes\s+(?:que\s+tenho\s+)?(?:no|do)\s+crm|meus\s+clientes/i.test(msg)
+  ) {
+    const clientes = await buscarClientesAtivos(sb, ownerId);
+    if (!clientes.length) return "💭 Nenhum cliente no CRM ainda.";
+    return (
+      `📋 *Seus ${clientes.length} clientes:*\n` +
+      clientes
+        .map((c) => `• *${c.nome}* — ${CRM_LABELS[c.etapa_funil] ?? c.etapa_funil}`)
+        .join("\n")
+    );
+  }
+
+  // "pendentes / quem tá sem resposta"
+  if (/pendente|sem\s+resposta|aguardando/i.test(msg)) {
+    const agora = Date.now();
+    if (!allPending.length) return "💭 Nenhum cliente aguardando resposta agora.";
+    return (
+      `📬 *${allPending.length} aguardando:*\n` +
+      allPending
+        .map((p) => {
+          const horas = Math.floor((agora - new Date(p.created_at).getTime()) / 3_600_000);
+          const idade = horas >= 24 ? `${Math.floor(horas / 24)}d` : `${horas}h`;
+          return `• *${p.client_name}* (${idade}): "${p.client_message}"`;
+        })
+        .join("\n")
+    );
+  }
+
+  return null; // Não é um comando direto reconhecido → vai pra IA
+}
+
+// ─── PAZ: assistente de vendas do Felipe ─────────────────────────────────────────────────────
 
 async function paz(params: {
   sb: SupabaseClient;
@@ -740,6 +812,27 @@ async function paz(params: {
     .limit(5);
   const allPending = (allPendingRaw ?? []) as PendingRecord[];
 
+  // ── Tenta executar comando diretamente (sem IA) ───────────────────────────────────
+  const respostaDireta = await executarComandoDireto({
+    sb, ownerId, evolutionConfig, mensagem, allPending,
+  }).catch((err) => {
+    console.warn("[PAZ] Erro no comando direto:", err);
+    return null;
+  });
+
+  if (respostaDireta !== null) {
+    if (pazConversationId) {
+      const now = new Date().toISOString();
+      await sb.from("messages").insert([
+        { conversation_id: pazConversationId, direction: "incoming", sender: "Felipe", type: "text", content: mensagem, status: "delivered", sent_at: now, metadata: { source: "paz-self-chat" } },
+        { conversation_id: pazConversationId, direction: "outgoing", sender: "PAZ", type: "text", content: respostaDireta, status: "delivered", sent_at: now, metadata: { source: "paz-direct" } },
+      ]).catch(() => {});
+    }
+    await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, respostaDireta);
+    return;
+  }
+  // ── Fim do bypass — segue para IA ────────────────────────────────────────────
+
   // Todos os clientes ativos no CRM (para PAZ saber quem existe)
   const clientesAtivos = await buscarClientesAtivos(sb, ownerId);
 
@@ -756,11 +849,11 @@ async function paz(params: {
     .map((c) => c.metadata as Record<string, unknown>)
     .filter((m) => m?.push_name);
 
-  // ── Contexto de pendentes (com idade para PAZ sugerir follow-ups) ────────────
+  // ── Contexto de pendentes (com idade para PAZ sugerir follow-ups) ──────────────────────
   const agora = Date.now();
   let contextoPendentes = "";
   if (allPending.length === 0) {
-    contextoPendentes = "\n\n📭 Nenhum cliente aguardando resposta agora.";
+    contextoPendentes = "\n\n💭 Nenhum cliente aguardando resposta agora.";
   } else {
     const linhas = allPending.map((p, i) => {
       const horas = Math.floor((agora - new Date(p.created_at).getTime()) / 3_600_000);
@@ -774,7 +867,7 @@ async function paz(params: {
       `\n\n📬 *${allPending.length} cliente(s) aguardando resposta:*\n` + linhas.join("\n");
   }
 
-  // ── Contexto do CRM ──────────────────────────────────────────────────────────
+  // ── Contexto do CRM ────────────────────────────────────────────────────────────────────
   let contextoCrm = "";
   if (clientesAtivos.length > 0) {
     contextoCrm =
@@ -828,7 +921,7 @@ async function paz(params: {
     }
   }
 
-  // ── Contexto de contatos sem cadastro no CRM ─────────────────────────────────
+  // ── Contexto de contatos sem cadastro no CRM ──────────────────────────────────────────────
   let contextoDesconhecidos = "";
   if (contatosDesconhecidos.length > 0) {
     const linhas = contatosDesconhecidos.map(
@@ -838,7 +931,7 @@ async function paz(params: {
       `\n\n📥 *Contatos no WhatsApp sem cadastro no CRM:*\n` + linhas.join("\n");
   }
 
-  // ── System prompt ────────────────────────────────────────────────────────────
+  // ── System prompt ────────────────────────────────────────────────────────────────────────
   const systemPrompt =
     `Você é PAZ — a assistente pessoal do corretor Felipe Paz no WhatsApp.\n\n` +
     `Você não é um bot de comandos. É a sócia inteligente do Felipe que vive no WhatsApp dele. ` +
@@ -947,7 +1040,7 @@ async function paz(params: {
   }
 }
 
-// ─── Handler principal ────────────────────────────────────────────────────────
+// ─── Handler principal ─────────────────────────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
@@ -1003,7 +1096,7 @@ Deno.serve(async (req) => {
     instance: (config?.instance_name as string) ?? "prime-crm",
   };
 
-  // ─── Self-chat: Felipe conversando com PAZ ────────────────────────────────────
+  // ─── Self-chat: Felipe conversando com PAZ ────────────────────────────────────────────
   const felipeVariants = normalizePhone(FELIPE_PHONE).map((v) => v.replace(/\D/g, ""));
   const isSelfChat =
     key?.fromMe === true && felipeVariants.includes(rawPhone.replace(/\D/g, ""));
@@ -1066,7 +1159,7 @@ Deno.serve(async (req) => {
     return new Response("OK", { status: 200 });
   }
 
-  // ─── Fluxo de cliente ─────────────────────────────────────────────────────────
+  // ─── Fluxo de cliente ───────────────────────────────────────────────────────────────────────────
   const phoneVariants = normalizePhone(rawPhone);
 
   const { data: clientData } = await supabase
