@@ -33,10 +33,22 @@ interface EvolutionConfig {
   instance: string;
 }
 
+interface PendingRecord {
+  id: string;
+  client_id: string;
+  client_phone: string;
+  client_name: string;
+  client_message: string;
+  suggested_text: string;
+  conversation_id: string;
+  created_at: string;
+}
+
 interface AcaoIA {
   tipo: "ENVIAR_CLIENTE" | "MOVER_CRM" | "IGNORAR" | "CONVERSAR";
   texto?: string;
   etapa?: string;
+  client_name?: string;
   motivo?: string;
 }
 
@@ -142,11 +154,19 @@ function normalizePhone(raw: string): string[] {
 
 // ─── Evolution API ────────────────────────────────────────────────────────────
 
-async function enviarWhatsApp(config: EvolutionConfig, numero: string, texto: string): Promise<void> {
+async function enviarWhatsApp(
+  config: EvolutionConfig,
+  numero: string,
+  texto: string,
+): Promise<void> {
   const res = await fetch(`${config.baseUrl}/message/sendText/${config.instance}`, {
     method: "POST",
     headers: { apikey: config.apiKey.trim(), "Content-Type": "application/json" },
-    body: JSON.stringify({ number: numero, text: texto, options: { delay: 1200, presence: "composing" } }),
+    body: JSON.stringify({
+      number: numero,
+      text: texto,
+      options: { delay: 1200, presence: "composing" },
+    }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -154,7 +174,57 @@ async function enviarWhatsApp(config: EvolutionConfig, numero: string, texto: st
   }
 }
 
-// ─── OpenAI: gera sugestão inicial ───────────────────────────────────────────
+// ─── CRM ─────────────────────────────────────────────────────────────────────
+
+const CRM_ATALHOS: Record<string, string> = {
+  contato: "contato_iniciado",
+  qualificado: "qualificacao",
+  qualificacao: "qualificacao",
+  qualificação: "qualificacao",
+  followup: "qualificacao",
+  visita: "visita_agendada",
+  proposta: "proposta",
+  financiamento: "negociacao",
+  negociacao: "negociacao",
+  negociação: "negociacao",
+  vendido: "fechado_ganho",
+  fechado_ganho: "fechado_ganho",
+  perdido: "fechado_perdido",
+  fechado_perdido: "fechado_perdido",
+};
+
+const CRM_LABELS: Record<string, string> = {
+  novo_lead: "Novo Lead",
+  contato_iniciado: "Contato Iniciado",
+  qualificacao: "Qualificação",
+  visita_agendada: "Visita Agendada",
+  proposta: "Proposta",
+  negociacao: "Negociação",
+  fechado_ganho: "Vendido ✅",
+  fechado_perdido: "Perdido ❌",
+};
+
+// ─── Busca histórico da conversa com o cliente ────────────────────────────────
+
+async function buscarHistoricoConversa(
+  sb: SupabaseClient,
+  conversationId: string,
+  limite = 10,
+): Promise<string> {
+  const { data } = await sb
+    .from("messages")
+    .select("direction, sender, content, sent_at")
+    .eq("conversation_id", conversationId)
+    .order("sent_at", { ascending: false })
+    .limit(limite);
+
+  return (data ?? [])
+    .reverse()
+    .map((m) => `${m.direction === "outgoing" ? "Felipe" : m.sender}: ${m.content}`)
+    .join("\n");
+}
+
+// ─── Gera sugestão de resposta ────────────────────────────────────────────────
 
 async function gerarSugestao(
   mensagem: string,
@@ -193,51 +263,7 @@ async function gerarSugestao(
   }
 }
 
-async function buscarHistorico(sb: SupabaseClient, conversationId: string): Promise<string> {
-  const { data } = await sb
-    .from("messages")
-    .select("direction, sender, content")
-    .eq("conversation_id", conversationId)
-    .order("sent_at", { ascending: false })
-    .limit(8);
-
-  return (data ?? [])
-    .reverse()
-    .map((m) => `${m.direction === "outgoing" ? "Felipe" : m.sender}: ${m.content}`)
-    .join("\n");
-}
-
-// ─── CRM ─────────────────────────────────────────────────────────────────────
-
-const CRM_ATALHOS: Record<string, string> = {
-  contato: "contato_iniciado",
-  qualificado: "qualificacao",
-  qualificacao: "qualificacao",
-  qualificação: "qualificacao",
-  followup: "qualificacao",
-  visita: "visita_agendada",
-  proposta: "proposta",
-  financiamento: "negociacao",
-  negociacao: "negociacao",
-  negociação: "negociacao",
-  vendido: "fechado_ganho",
-  fechado_ganho: "fechado_ganho",
-  perdido: "fechado_perdido",
-  fechado_perdido: "fechado_perdido",
-};
-
-const CRM_LABELS: Record<string, string> = {
-  novo_lead: "Novo Lead",
-  contato_iniciado: "Contato Iniciado",
-  qualificacao: "Qualificação",
-  visita_agendada: "Visita Agendada",
-  proposta: "Proposta",
-  negociacao: "Negociação",
-  fechado_ganho: "Vendido ✅",
-  fechado_perdido: "Perdido ❌",
-};
-
-// ─── Notifica Felipe quando cliente envia mensagem ────────────────────────────
+// ─── Notifica Felipe quando cliente manda mensagem ───────────────────────
 
 async function processarMensagemIa(params: {
   sb: SupabaseClient;
@@ -263,8 +289,17 @@ async function processarMensagemIa(params: {
   } = params;
 
   try {
-    const historico = isPrimeiroContato ? "" : await buscarHistorico(sb, conversationId);
+    const historico = isPrimeiroContato
+      ? ""
+      : await buscarHistoricoConversa(sb, conversationId, 8);
     const sugestao = await gerarSugestao(mensagem, clienteNome, historico, isPrimeiroContato);
+
+    const { data: clienteInfo } = await sb
+      .from("clients")
+      .select("etapa_funil")
+      .eq("id", clienteId)
+      .single();
+    const etapaLabel = CRM_LABELS[clienteInfo?.etapa_funil ?? ""] ?? "Novo Lead";
 
     await sb.from("ai_pending_responses").insert({
       owner_id: ownerId,
@@ -277,17 +312,17 @@ async function processarMensagemIa(params: {
     });
 
     const notif =
-      `📩 *${clienteNome}*${isPrimeiroContato ? " _(novo)_" : ""}:\n"${mensagem}"` +
-      (sugestao ? `\n\n💡 *Sugestão:*\n"${sugestao}"` : "");
+      `📩 *${clienteNome}* _(${isPrimeiroContato ? "novo" : etapaLabel})_:\n"${mensagem}"` +
+      (sugestao ? `\n\n💡 *PAZ sugere:*\n"${sugestao}"` : "");
 
     await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, notif);
-    console.log(`[IA] Felipe notificado — ${clienteNome}`);
+    console.log(`[PAZ] Felipe notificado — ${clienteNome}`);
   } catch (err) {
-    console.error("[IA] erro →", err instanceof Error ? err.message : String(err));
+    console.error("[PAZ] erro notificação →", err instanceof Error ? err.message : String(err));
   }
 }
 
-// ─── Parse da ação estruturada retornada pela IA ─────────────────────────────
+// ─── Parse da ação estruturada ────────────────────────────────────────────────────
 
 function parsearAcaoIA(resposta: string): { texto: string; acao: AcaoIA | null } {
   const match = resposta.match(/<ACAO>([\s\S]*?)<\/ACAO>/);
@@ -303,21 +338,31 @@ function parsearAcaoIA(resposta: string): { texto: string; acao: AcaoIA | null }
   }
 }
 
-// ─── Executa ação aprovada ────────────────────────────────────────────────────
+// ─── Executa ação ──────────────────────────────────────────────────────────────────
 
 async function executarAcao(params: {
   sb: SupabaseClient;
   evolutionConfig: EvolutionConfig;
-  pending: Record<string, unknown>;
+  allPending: PendingRecord[];
   acao: AcaoIA;
 }): Promise<string> {
-  const { sb, evolutionConfig, pending, acao } = params;
+  const { sb, evolutionConfig, allPending, acao } = params;
+
+  let pending = allPending[0];
+  if (acao.client_name && allPending.length > 1) {
+    const match = allPending.find((p) =>
+      p.client_name.toLowerCase().includes(acao.client_name!.toLowerCase()),
+    );
+    if (match) pending = match;
+  }
+
+  if (!pending) return "⚠️ Nenhum cliente pendente para executar ação.";
 
   if (acao.tipo === "ENVIAR_CLIENTE") {
-    const texto = acao.texto || (pending.suggested_text as string);
-    if (!texto) return "⚠️ Nenhum texto definido para enviar.";
+    const texto = acao.texto || pending.suggested_text;
+    if (!texto) return "⚠️ Nenhum texto para enviar.";
 
-    await enviarWhatsApp(evolutionConfig, pending.client_phone as string, texto);
+    await enviarWhatsApp(evolutionConfig, pending.client_phone, texto);
 
     await sb.from("messages").insert({
       conversation_id: pending.conversation_id,
@@ -327,13 +372,13 @@ async function executarAcao(params: {
       content: texto,
       status: "delivered",
       sent_at: new Date().toISOString(),
-      metadata: { source: "ai-approved", client_id: pending.client_id },
+      metadata: { source: "paz-approved", client_id: pending.client_id },
     });
 
     await sb
       .from("ai_pending_responses")
       .update({ status: "sent", sent_at: new Date().toISOString() })
-      .eq("id", pending.id as string);
+      .eq("id", pending.id);
 
     return `✅ Enviado para *${pending.client_name}*`;
   }
@@ -345,31 +390,23 @@ async function executarAcao(params: {
       .replace(/[̀-ͯ]/g, "");
     const etapa = CRM_ATALHOS[etapaRaw] ?? etapaRaw;
 
-    await sb.from("clients").update({ etapa_funil: etapa }).eq("id", pending.client_id as string);
-
-    await sb
-      .from("ai_pending_responses")
-      .update({ status: "skipped" })
-      .eq("id", pending.id as string);
+    await sb.from("clients").update({ etapa_funil: etapa }).eq("id", pending.client_id);
+    await sb.from("ai_pending_responses").update({ status: "skipped" }).eq("id", pending.id);
 
     return `✅ *${pending.client_name}* → *${CRM_LABELS[etapa] ?? etapa}*`;
   }
 
   if (acao.tipo === "IGNORAR") {
-    await sb
-      .from("ai_pending_responses")
-      .update({ status: "skipped" })
-      .eq("id", pending.id as string);
-
-    return `⏭️ Mensagem de *${pending.client_name}* ignorada.`;
+    await sb.from("ai_pending_responses").update({ status: "skipped" }).eq("id", pending.id);
+    return `⏭️ *${pending.client_name}* ignorado.`;
   }
 
   return "";
 }
 
-// ─── Conversa natural com Felipe (state machine via OpenAI) ──────────────────
+// ─── PAZ: assistente de vendas do Felipe ─────────────────────────────────────────
 
-async function conversarComFelipe(params: {
+async function paz(params: {
   sb: SupabaseClient;
   mensagem: string;
   evolutionConfig: EvolutionConfig;
@@ -382,87 +419,83 @@ async function conversarComFelipe(params: {
     return;
   }
 
-  const { data: pending } = await sb
+  const { data: allPendingRaw } = await sb
     .from("ai_pending_responses")
     .select("*")
     .eq("status", "pending")
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(5);
 
-  const contextoCliente = pending
-    ? `
-ESTADO: AGUARDANDO_APROVAÇÃO
+  const allPending = (allPendingRaw ?? []) as PendingRecord[];
 
-Cliente aguardando decisão:
-• Nome: ${pending.client_name}
-• Mensagem dele: "${pending.client_message}"
-• Sugestão de resposta: "${pending.suggested_text}"
+  let contextoPendentes = "";
+  if (allPending.length === 0) {
+    contextoPendentes = "\n\n💭 Nenhum cliente aguardando resposta no momento.";
+  } else if (allPending.length === 1) {
+    const p = allPending[0];
+    contextoPendentes =
+      `\n\n📬 *Cliente aguardando decisão:*\n` +
+      `• *${p.client_name}*: "${p.client_message}"\n` +
+      `  💡 Sugestão: "${p.suggested_text}"`;
+  } else {
+    contextoPendentes =
+      `\n\n📬 *${allPending.length} clientes aguardando:*\n` +
+      allPending
+        .map(
+          (p, i) =>
+            `${i + 1}. *${p.client_name}*: "${p.client_message}"\n   💡 "${p.suggested_text}"`,
+        )
+        .join("\n");
+  }
 
-REGRA CRÍTICA: Quando há um cliente pendente, seja GENEROSO ao interpretar aprovação.
-Dúvida → prefira ENVIAR_CLIENTE a CONVERSAR.
-NUNCA peça confirmação dupla — se Felipe disse para enviar, execute imediatamente.
-
-APROVAÇÃO DA SUGESTÃO (use o texto da sugestão): "sim", "ok", "pode", "envia", "manda", "vai", "confirmado", "perfeito", "tá bom", "isso", "isso mesmo", "pode enviar", "aprovo", "envia isso", "manda isso", "responder cliente", "responde", "responder", "responde pra ele", "responde ao cliente"
-
-TEXTO PERSONALIZADO (use o texto que Felipe escreveu após os dois-pontos ou após "fala/manda/envia/responde pro cliente"): "fala pra ele: X", "manda: X", "envia: X", "responde pro cliente X: Y", "fala: X", "di pra ele: X"
-
-MOVER NO CRM: "move pra X", "muda pra X", "coloca em X", "passa pra X", "etapa X"
-
-IGNORAR: "ignora", "deixa", "não responde", "depois", "skip", "pula"
-
-APENAS CONVERSANDO (pergunta sobre estratégia, análise, informação): tipo CONVERSAR`
-    : `
-ESTADO: OBSERVANDO — Nenhum cliente aguardando resposta no momento.
-Felipe pode estar pedindo estratégias, informações ou discutindo negociações. → tipo CONVERSAR`;
+  let historicoCliente = "";
+  if (allPending.length > 0) {
+    const nomesMencionados = allPending.filter((p) =>
+      mensagem.toLowerCase().includes(p.client_name.toLowerCase().split(" ")[0]),
+    );
+    if (nomesMencionados.length > 0) {
+      const hist = await buscarHistoricoConversa(sb, nomesMencionados[0].conversation_id, 15);
+      if (hist) {
+        historicoCliente = `\n\n📝 *Histórico da conversa com ${nomesMencionados[0].client_name}:*\n${hist}`;
+      }
+    }
+  }
 
   const systemPrompt =
-    `Você é a assistente operacional do Felipe Paz, corretor de imóveis autônomo. ` +
-    `Você conversa EXCLUSIVAMENTE com o Felipe — nunca com clientes. ` +
-    `REGRAS ABSOLUTAS: (1) NUNCA envie mensagem ao cliente sem aprovação explícita. ` +
-    `(2) NUNCA altere o CRM sem aprovação explícita. ` +
-    `Seja natural, objetiva e útil. Responda sempre em português brasileiro. ` +
-    `Você é especialista em vendas imobiliárias. ` +
-    contextoCliente +
-    `
-
-OBRIGATÓRIO — inclua ao final de TODA resposta exatamente este bloco (sem exceções):
-
-<ACAO>
-{
-  "tipo": "ENVIAR_CLIENTE",
-  "texto": "texto exato a enviar ao cliente",
-  "motivo": "uma linha"
-}
-</ACAO>
-
-ou
-
-<ACAO>
-{
-  "tipo": "MOVER_CRM",
-  "etapa": "etapa em português (contato, qualificado, visita, proposta, financiamento, vendido, perdido)",
-  "motivo": "uma linha"
-}
-</ACAO>
-
-ou
-
-<ACAO>
-{
-  "tipo": "IGNORAR",
-  "motivo": "uma linha"
-}
-</ACAO>
-
-ou
-
-<ACAO>
-{
-  "tipo": "CONVERSAR",
-  "motivo": "uma linha"
-}
-</ACAO>`;
+    `Você é PAZ, a assistente pessoal de vendas do Felipe Paz, corretor de imóveis autônomo. ` +
+    `Você é inteligente, proativa, direta e especialista em vendas imobiliárias. ` +
+    `Você conversa com o Felipe de forma natural, como uma secretária muito competente. ` +
+    `Você pode ser chamada de PAZ — "PAZ faz isso", "PAZ analisa", "PAZ responde". ` +
+    `\n\n` +
+    `SUAS CAPACIDADES:\n` +
+    `• Analisar conversas com clientes e dar opiniões estratégicas\n` +
+    `• Sugerir abordagens de venda e follow-up\n` +
+    `• Responder perguntas sobre clientes pendentes\n` +
+    `• Executar ações no CRM quando Felipe aprovar\n` +
+    `• Discutir negociações e estratégias\n` +
+    `• Lembrar contexto dos clientes durante a conversa\n` +
+    `\n` +
+    `REGRAS INVIOLÁVEIS:\n` +
+    `1. NUNCA envie mensagem ao cliente sem aprovação explícita do Felipe\n` +
+    `2. NUNCA altere o CRM sem aprovação explícita do Felipe\n` +
+    `3. Sempre apresente o que vai fazer antes de executar` +
+    contextoPendentes +
+    historicoCliente +
+    `\n\n` +
+    `QUANDO FELIPE APROVAR UMA AÇÃO (envia, manda, pode, sim, ok, confirmado, vai, perfeito, tá bom, faz isso, executa, responde, responde pra ele, responde ao cliente, adiciona, move, muda) — use tipo ENVIAR_CLIENTE, MOVER_CRM ou IGNORAR.\n` +
+    `QUANDO Felipe der texto personalizado ("fala pra ele X", "manda: X", "responde assim: X") — use ENVIAR_CLIENTE com esse texto.\n` +
+    `QUANDO Felipe pede análise, opinião ou está discutindo — use CONVERSAR.\n` +
+    `\n` +
+    `SEMPRE inclua ao final da resposta:\n` +
+    `<ACAO>\n` +
+    `{\n` +
+    `  "tipo": "ENVIAR_CLIENTE" | "MOVER_CRM" | "IGNORAR" | "CONVERSAR",\n` +
+    `  "client_name": "nome do cliente se houver mais de 1 pendente",\n` +
+    `  "texto": "texto a enviar (só ENVIAR_CLIENTE)",\n` +
+    `  "etapa": "etapa CRM (só MOVER_CRM): contato, qualificado, visita, proposta, financiamento, vendido, perdido",\n` +
+    `  "motivo": "uma linha"\n` +
+    `}\n` +
+    `</ACAO>`;
 
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -470,7 +503,7 @@ ou
       headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        max_tokens: 600,
+        max_tokens: 700,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: mensagem },
@@ -479,7 +512,7 @@ ou
     });
 
     if (!res.ok) {
-      await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ Erro ao processar sua mensagem.");
+      await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ Erro ao processar.");
       return;
     }
 
@@ -492,20 +525,15 @@ ou
       await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, texto);
     }
 
-    if (acao && acao.tipo !== "CONVERSAR" && pending) {
-      const resultado = await executarAcao({
-        sb,
-        evolutionConfig,
-        pending: pending as unknown as Record<string, unknown>,
-        acao,
-      });
+    if (acao && acao.tipo !== "CONVERSAR" && allPending.length > 0) {
+      const resultado = await executarAcao({ sb, evolutionConfig, allPending, acao });
       if (resultado) {
         await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, resultado);
       }
     }
   } catch (err) {
-    console.error("[CHAT] erro →", err instanceof Error ? err.message : String(err));
-    await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ Erro na conversa.");
+    console.error("[PAZ] erro →", err instanceof Error ? err.message : String(err));
+    await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ PAZ com erro. Tente novamente.");
   }
 }
 
@@ -559,19 +587,22 @@ Deno.serve(async (req) => {
 
   const evolutionConfig: EvolutionConfig = {
     apiKey: (config?.api_key as string) ?? "",
-    baseUrl: ((config?.base_url as string) ?? "https://evolution-api-production-448e.up.railway.app").replace(/\/$/, ""),
+    baseUrl: (
+      (config?.base_url as string) ?? "https://evolution-api-production-448e.up.railway.app"
+    ).replace(/\/$/, ""),
     instance: (config?.instance_name as string) ?? "prime-crm",
   };
 
-  // ─── Self-chat: Felipe conversando com a IA ──────────────────────────────────
+  // ─── Self-chat: Felipe conversando com PAZ ───────────────────────────────────
   const felipeVariants = normalizePhone(FELIPE_PHONE).map((v) => v.replace(/\D/g, ""));
-  const isSelfChat = key?.fromMe === true && felipeVariants.includes(rawPhone.replace(/\D/g, ""));
+  const isSelfChat =
+    key?.fromMe === true && felipeVariants.includes(rawPhone.replace(/\D/g, ""));
 
   if (isSelfChat) {
-    console.log(`[WEBHOOK] self-chat Felipe: "${content}"`);
+    console.log(`[WEBHOOK] Felipe → PAZ: "${content}"`);
     if (content) {
-      conversarComFelipe({ sb: supabase, mensagem: content, evolutionConfig }).catch((err) =>
-        console.error("[WEBHOOK] Erro na conversa:", err),
+      paz({ sb: supabase, mensagem: content, evolutionConfig }).catch((err) =>
+        console.error("[WEBHOOK] Erro PAZ:", err),
       );
     }
     return new Response("OK", { status: 200 });
@@ -671,7 +702,7 @@ Deno.serve(async (req) => {
 
   console.log(`[WEBHOOK] mensagem salva | ${pushName} | ${content?.slice(0, 60)}`);
 
-  // Notifica Felipe — NÃO envia ao cliente automaticamente
+  // PAZ notifica Felipe — NÃO envia ao cliente automaticamente
   if (content && evolutionConfig.apiKey) {
     processarMensagemIa({
       sb: supabase,
@@ -683,7 +714,7 @@ Deno.serve(async (req) => {
       ownerId,
       evolutionConfig,
       isPrimeiroContato,
-    }).catch((err) => console.error("[WEBHOOK] Erro IA:", err));
+    }).catch((err) => console.error("[WEBHOOK] Erro PAZ notificação:", err));
   }
 
   return new Response("OK", { status: 200 });
