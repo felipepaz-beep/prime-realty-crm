@@ -431,6 +431,25 @@ async function processarMensagemIa(params: {
       .single();
     const etapaLabel = CRM_LABELS[clienteInfo?.etapa_funil ?? ""] ?? "Novo Lead";
 
+    // Se já existe pending deste cliente, apenas atualiza — sem nova notificação
+    const { data: existingPending } = await sb
+      .from("ai_pending_responses")
+      .select("id")
+      .eq("client_id", clienteId)
+      .eq("status", "pending")
+      .limit(1)
+      .maybeSingle();
+
+    if (existingPending) {
+      await sb
+        .from("ai_pending_responses")
+        .update({ client_message: mensagem, suggested_text: sugestao })
+        .eq("id", existingPending.id);
+      console.log(`[PAZ] Pendente atualizado silenciosamente — ${clienteNome}`);
+      return;
+    }
+
+    // Primeiro contato desta sessão — insere e notifica Felipe
     await sb.from("ai_pending_responses").insert({
       owner_id: ownerId,
       conversation_id: conversationId,
@@ -486,7 +505,7 @@ function normalizarEtapa(raw: string): string {
   const k = raw
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .trim();
   return CRM_ATALHOS[k] ?? k;
 }
@@ -517,12 +536,14 @@ async function executarAcao(params: {
     const etapa = normalizarEtapa(acao.etapa ?? "");
     if (!etapa) return "⚠️ Etapa não reconhecida.";
 
+    // Se encontrou pending, usa o client_id de lá
     if (pending) {
       await sb.from("clients").update({ etapa_funil: etapa }).eq("id", pending.client_id);
       await sb.from("ai_pending_responses").update({ status: "skipped" }).eq("id", pending.id);
       return `✅ *${pending.client_name}* → *${CRM_LABELS[etapa] ?? etapa}*`;
     }
 
+    // Senão busca direto na tabela de clientes pelo nome
     if (acao.client_name) {
       const cliente = await buscarClientePorNome(sb, ownerId, acao.client_name);
       if (cliente) {
@@ -537,6 +558,7 @@ async function executarAcao(params: {
 
   // ── ENVIAR_CLIENTE ───────────────────────────────────────────────────────────
   if (acao.tipo === "ENVIAR_CLIENTE") {
+    // Texto pode vir do comando do Felipe ou da sugestão salva
     const texto = acao.texto || pending?.suggested_text;
     if (!texto) return "⚠️ Nenhum texto para enviar.";
 
@@ -559,6 +581,7 @@ async function executarAcao(params: {
       return `✅ Enviado para *${pending.client_name}*`;
     }
 
+    // Tenta buscar cliente pelo nome e pegar o número diretamente
     if (acao.client_name) {
       const cliente = await buscarClientePorNome(sb, ownerId, acao.client_name);
       if (cliente) {
@@ -641,22 +664,22 @@ async function paz(params: {
   // Todos os clientes ativos no CRM (para PAZ saber quem existe)
   const clientesAtivos = await buscarClientesAtivos(sb, ownerId);
 
-  // ── Contexto de pendentes ────────────────────────────────────────────────────
+  // ── Contexto de pendentes (com idade para PAZ sugerir follow-ups) ────────────
+  const agora = Date.now();
   let contextoPendentes = "";
   if (allPending.length === 0) {
     contextoPendentes = "\n\n📭 Nenhum cliente aguardando resposta agora.";
-  } else if (allPending.length === 1) {
-    const p = allPending[0];
-    contextoPendentes =
-      `\n\n📬 *Aguardando resposta:*\n` +
-      `• *${p.client_name}*: "${p.client_message}"\n` +
-      `  💡 Sugestão: "${p.suggested_text}"`;
   } else {
+    const linhas = allPending.map((p, i) => {
+      const horas = Math.floor((agora - new Date(p.created_at).getTime()) / 3_600_000);
+      const idadeStr = horas >= 24 ? `${Math.floor(horas / 24)}d atrás` : `${horas}h atrás`;
+      return (
+        `${i + 1}. *${p.client_name}* (${idadeStr}): "${p.client_message}"\n` +
+        `   💡 "${p.suggested_text}"`
+      );
+    });
     contextoPendentes =
-      `\n\n📬 *${allPending.length} clientes aguardando resposta:*\n` +
-      allPending
-        .map((p, i) => `${i + 1}. *${p.client_name}*: "${p.client_message}"\n   💡 "${p.suggested_text}"`)
-        .join("\n");
+      `\n\n📬 *${allPending.length} cliente(s) aguardando resposta:*\n` + linhas.join("\n");
   }
 
   // ── Contexto do CRM ──────────────────────────────────────────────────────────
@@ -669,60 +692,72 @@ async function paz(params: {
         .join("\n");
   }
 
-  // ── Histórico de conversa de cliente mencionado ──────────────────────────────
+  // ── Histórico de conversa do cliente mencionado (pending OU qualquer ativo) ──
   let historicoCliente = "";
-  if (allPending.length > 0) {
-    const mencionado = allPending.find((p) =>
+  {
+    // 1. Tenta nos pendentes
+    const mencionadoPending = allPending.find((p) =>
       mensagem.toLowerCase().includes(p.client_name.toLowerCase().split(" ")[0]),
     );
-    if (mencionado) {
-      const hist = await buscarHistoricoConversa(sb, mencionado.conversation_id, 15);
-      if (hist) {
-        historicoCliente = `\n\n📝 *Conversa com ${mencionado.client_name}:*\n${hist}`;
+    if (mencionadoPending) {
+      const hist = await buscarHistoricoConversa(sb, mencionadoPending.conversation_id, 20);
+      if (hist)
+        historicoCliente = `\n\n📝 *Conversa com ${mencionadoPending.client_name}:*\n${hist}`;
+    } else {
+      // 2. Tenta qualquer cliente ativo mencionado pelo primeiro nome
+      for (const c of clientesAtivos) {
+        const primeiroNome = c.nome.split(" ")[0].toLowerCase();
+        if (primeiroNome.length >= 3 && mensagem.toLowerCase().includes(primeiroNome)) {
+          const cf = await buscarClientePorNome(sb, ownerId, c.nome);
+          if (cf) {
+            const { data: conv } = await sb
+              .from("conversations")
+              .select("id")
+              .eq("client_id", cf.id)
+              .eq("status", "open")
+              .maybeSingle();
+            if (conv) {
+              const hist = await buscarHistoricoConversa(sb, conv.id, 20);
+              if (hist) historicoCliente = `\n\n📝 *Conversa com ${c.nome}:*\n${hist}`;
+            }
+          }
+          break;
+        }
       }
     }
   }
 
   // ── System prompt ────────────────────────────────────────────────────────────
   const systemPrompt =
-    `Você é PAZ — a assistente pessoal do corretor Felipe Paz.\n\n` +
-    `Você não é um bot de automação. Você é a assistente pessoal do corretor. ` +
-    `Seu trabalho principal é conversar com ele, ajudá-lo a tomar decisões ` +
-    `e somente depois executar o que foi decidido juntos.\n\n` +
-    `QUEM VOCÊ É:\n` +
-    `Direta, esperta, especialista em vendas imobiliárias. Fala de forma natural ` +
-    `— como uma sócia que entende muito do negócio, não como um robô. ` +
-    `Tem personalidade: comenta, opina, questiona quando algo não parece certo, ` +
-    `comemora quando um negócio fecha. Se importa com o sucesso do Felipe ` +
-    `e age como se fosse sua empresa também.\n\n` +
-    `SEU FLUXO NATURAL:\n` +
-    `• Você conversa primeiro — analisa a situação, dá opinião, ajuda Felipe a pensar\n` +
-    `• Só depois, quando Felipe decide, você executa\n` +
-    `• Você não espera palavras-chave: colabora ativamente, propõe, discute\n\n` +
-    `VOCÊ FAZ DE TUDO:\n` +
-    `• Conversa sobre qualquer assunto — estratégia, negociação, mercado imobiliário, follow-up\n` +
-    `• Analisa conversas com clientes e dá opiniões honestas ("esse cliente tá frio, qualificaria antes de marcar visita")\n` +
-    `• Monta textos para enviar ao cliente quando Felipe pedir\n` +
-    `• Move clientes no CRM quando Felipe mandar\n` +
-    `• Envia mensagens para clientes quando Felipe mandar\n` +
-    `• Conta o que tem pendente, analisa o pipeline, lembra de follow-ups\n\n` +
-    `REGRA DE CADASTRO AUTOMÁTICO:\n` +
-    `Quando um número desconhecido inicia conversa, o sistema cria o cliente automaticamente e o posiciona em "Novo Lead". ` +
-    `Isso não é uma decisão comercial — é apenas registrar que o cliente existe. ` +
-    `Após isso, você notifica Felipe e aguarda orientação dele.\n` +
-    `Você NÃO poderá por conta própria: mover kanban, criar tarefas, criar agenda, criar visitas, ` +
-    `criar follow-up, registrar financeiro, alterar etapas, responder clientes. ` +
-    `Tudo isso depende da decisão do corretor.\n\n` +
-    `REGRA DE OURO:\n` +
-    `Nunca mude o CRM nem mande mensagem para cliente por conta própria — só quando Felipe decidir. ` +
-    `Quando ele decidir, execute imediatamente sem confirmar de novo.\n` +
-    `"sim", "ok", "pode", "vai", "manda", "faz" = execute agora, sem pedir confirmação.\n` +
+    `Você é PAZ — a assistente pessoal do corretor Felipe Paz no WhatsApp.\n\n` +
+    `Você não é um bot de comandos. É a sócia inteligente do Felipe que vive no WhatsApp dele. ` +
+    `Conversa, analisa, opina e executa — nessa ordem.\n\n` +
+    `CAPACIDADES (tudo que você sabe fazer):\n` +
+    `• Mover cliente no CRM: "PAZ move o André pra qualificação" → execute\n` +
+    `• Enviar mensagem para cliente: "PAZ manda isso pro João: [texto]" → execute\n` +
+    `• Analisar conversa: "PAZ analisa a conversa com o André" → o histórico está disponível acima quando o cliente é mencionado\n` +
+    `• Follow-up e inativos: "PAZ quem tá sem resposta?" → olhe a idade dos pendentes e responda com análise\n` +
+    `• Pipeline: "PAZ como tá meu pipeline?" → analise os clientes ativos e dê um diagnóstico\n` +
+    `• Sugerir abordagem: "PAZ como abordo o cliente que quer visitar?" → dê opinião estratégica\n` +
+    `• Montar mensagem: "PAZ monta uma mensagem perguntando sobre financiamento" → crie o texto\n` +
+    `• Qualquer papo de negócio imobiliário: estratégia, negociação, precificação, timing\n\n` +
+    `REGRA DE EXECUÇÃO — CRÍTICA:\n` +
+    `Quando Felipe pedir uma ação, EXECUTE e diga claramente o que está fazendo no texto:\n` +
+    `✓ "Movendo Andre Luis para Qualificação agora." (não "Tudo certo! Como posso ajudar?")\n` +
+    `✓ "Enviando para o João: [texto]"\n` +
+    `"sim", "ok", "pode", "vai", "manda", "faz" = execute imediatamente, sem pedir confirmação.\n\n` +
+    `REGRA DE NOTIFICAÇÃO:\n` +
+    `O sistema já notifica Felipe UMA VEZ quando cliente manda mensagem. Novas mensagens do mesmo cliente atualizam silenciosamente o registro — Felipe não recebe spam. ` +
+    `Quando Felipe age (envia ou ignora), o ciclo recomeça.\n\n` +
+    `REGRA DE CADASTRO:\n` +
+    `Número desconhecido → sistema cria o lead automaticamente em "Novo Lead". ` +
+    `Você nunca cria, move ou altera CRM por conta própria — só quando Felipe mandar.\n` +
     contextoPendentes +
     contextoCrm +
     historicoCliente +
     `\n\n` +
-    `Quando for executar uma ação, inclua ao final da resposta (o Felipe não vê esse bloco):\n` +
-    `<ACAO>{"tipo":"ENVIAR_CLIENTE"|"MOVER_CRM"|"IGNORAR"|"CONVERSAR","client_name":"nome do cliente","texto":"texto a enviar (só ENVIAR_CLIENTE)","etapa":"contato|qualificado|visita|proposta|negociacao|vendido|perdido (só MOVER_CRM)","motivo":"..."}</ACAO>`;
+    `Quando for executar uma ação, inclua ao final (Felipe não vê):\n` +
+    `<ACAO>{"tipo":"ENVIAR_CLIENTE"|"MOVER_CRM"|"IGNORAR"|"CONVERSAR","client_name":"nome","texto":"(só ENVIAR_CLIENTE)","etapa":"contato|qualificado|visita|proposta|negociacao|vendido|perdido (só MOVER_CRM)","motivo":"..."}</ACAO>`;
 
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -853,7 +888,7 @@ Deno.serve(async (req) => {
     apiKey: (config?.api_key as string) ?? "",
     baseUrl: (
       (config?.base_url as string) ?? "https://evolution-api-production-448e.up.railway.app"
-    ).replace(/\/$/, ""),
+    ).replace(/\/$/,  ""),
     instance: (config?.instance_name as string) ?? "prime-crm",
   };
 
