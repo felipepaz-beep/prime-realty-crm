@@ -374,9 +374,10 @@ async function buscarClientePorNome(
 
 async function buscarContatoNasConversas(
   sb: SupabaseClient,
-  ownerId: string,
+  ownerId: string | null,
   nome: string,
 ): Promise<{ nome: string; phone: string; conversationId: string } | null> {
+  if (!ownerId) return null;
   const { data: convs } = await sb
     .from("conversations")
     .select("id, metadata")
@@ -673,17 +674,15 @@ async function executarAcao(params: {
       return `⚠️ *${jaExiste.nome}* já está no CRM (${CRM_LABELS[jaExiste.etapa_funil ?? ""] ?? "Lead"}).`;
     }
 
+    // Tenta vincular ao contato já existente no WhatsApp (staging)
     const contato = await buscarContatoNasConversas(sb, ownerId, nome);
-    if (!contato) {
-      return `⚠️ Não encontrei *${nome}* nas conversas do WhatsApp. Ele precisa te mandar uma mensagem primeiro.`;
-    }
 
     const { data: novoCliente, error: createErr } = await sb
       .from("clients")
       .insert({
         owner_id: ownerId,
-        nome: contato.nome,
-        whatsapp: contato.phone,
+        nome: contato?.nome ?? nome,
+        whatsapp: contato?.phone ?? null,
         etapa_funil: "novo_lead",
       })
       .select("id")
@@ -693,15 +692,86 @@ async function executarAcao(params: {
       return `⚠️ Erro ao criar lead: ${createErr?.message ?? "desconhecido"}`;
     }
 
-    await sb
-      .from("conversations")
-      .update({ client_id: novoCliente.id })
-      .eq("id", contato.conversationId);
+    if (contato) {
+      await sb
+        .from("conversations")
+        .update({ client_id: novoCliente.id })
+        .eq("id", contato.conversationId);
+      return `✅ *${contato.nome}* adicionado como Novo Lead!\n📱 +${contato.phone}`;
+    }
 
-    return `✅ *${contato.nome}* adicionado como Novo Lead!\n📱 +${contato.phone}`;
+    return (
+      `✅ *${nome}* adicionado como Novo Lead!\n` +
+      `📌 _Sem número ainda — quando ele te mandar mensagem o WhatsApp vincula automático._`
+    );
   }
 
   return "";
+}
+
+// ─── Detecção direta de comandos (bypass da IA para comandos simples) ─────────
+
+async function executarComandoDireto(params: {
+  sb: SupabaseClient;
+  ownerId: string | null;
+  evolutionConfig: EvolutionConfig;
+  mensagem: string;
+  allPending: PendingRecord[];
+}): Promise<string | null> {
+  const { sb, ownerId, evolutionConfig, mensagem, allPending } = params;
+  const msg = mensagem.trim();
+
+  // "adicione/adiciona [nome] [no crm]" ou "paz adiciona [nome]"
+  const mCriar = msg.match(
+    /^(?:paz\s+)?(?:adicione?|adiciona(?:r)?)\s+(.+?)(?:\s+(?:no|ao)\s+(?:crm|sistema))?$/i,
+  );
+  if (mCriar) {
+    const nome = mCriar[1].replace(/\s+(?:no|ao)\s+(?:crm|sistema)\s*$/i, "").trim();
+    if (nome) {
+      return executarAcao({ sb, ownerId, evolutionConfig, allPending, acao: { tipo: "CRIAR_LEAD", client_name: nome } });
+    }
+  }
+
+  // "move/mova [nome] para/pra [etapa]" ou "paz move..."
+  const mMover = msg.match(
+    /^(?:paz\s+)?(?:mov[ae](?:r)?|muda)\s+(?:o\s+|a\s+)?(.+?)\s+(?:para?|pra)\s+(.+?)$/i,
+  );
+  if (mMover) {
+    const [, nomeCliente, etapaRaw] = mMover;
+    return executarAcao({ sb, ownerId, evolutionConfig, allPending, acao: { tipo: "MOVER_CRM", client_name: nomeCliente.trim(), etapa: etapaRaw.trim() } });
+  }
+
+  // "quais os clientes / lista clientes / meus clientes / clientes no crm"
+  if (
+    /(?:quais|list[ae]|me\s+(?:diz|fala|mostra))\s+(?:os\s+|meus\s+)?clientes|clientes\s+(?:que\s+tenho\s+)?(?:no|do)\s+crm|meus\s+clientes/i.test(msg)
+  ) {
+    const clientes = await buscarClientesAtivos(sb, ownerId);
+    if (!clientes.length) return "📭 Nenhum cliente no CRM ainda.";
+    return (
+      `📋 *Seus ${clientes.length} clientes:*\n` +
+      clientes
+        .map((c) => `• *${c.nome}* — ${CRM_LABELS[c.etapa_funil] ?? c.etapa_funil}`)
+        .join("\n")
+    );
+  }
+
+  // "pendentes / quem tá sem resposta"
+  if (/pendente|sem\s+resposta|aguardando/i.test(msg)) {
+    const agora = Date.now();
+    if (!allPending.length) return "📭 Nenhum cliente aguardando resposta agora.";
+    return (
+      `📬 *${allPending.length} aguardando:*\n` +
+      allPending
+        .map((p) => {
+          const horas = Math.floor((agora - new Date(p.created_at).getTime()) / 3_600_000);
+          const idade = horas >= 24 ? `${Math.floor(horas / 24)}d` : `${horas}h`;
+          return `• *${p.client_name}* (${idade}): "${p.client_message}"`;
+        })
+        .join("\n")
+    );
+  }
+
+  return null; // Não é um comando direto reconhecido → vai pra IA
 }
 
 // ─── PAZ: assistente de vendas do Felipe ─────────────────────────────────────
@@ -739,6 +809,27 @@ async function paz(params: {
     .order("created_at", { ascending: false })
     .limit(5);
   const allPending = (allPendingRaw ?? []) as PendingRecord[];
+
+  // ── Tenta executar comando diretamente (sem IA) ─────────────────────────────
+  const respostaDireta = await executarComandoDireto({
+    sb, ownerId, evolutionConfig, mensagem, allPending,
+  }).catch((err) => {
+    console.warn("[PAZ] Erro no comando direto:", err);
+    return null;
+  });
+
+  if (respostaDireta !== null) {
+    if (pazConversationId) {
+      const now = new Date().toISOString();
+      await sb.from("messages").insert([
+        { conversation_id: pazConversationId, direction: "incoming", sender: "Felipe", type: "text", content: mensagem, status: "delivered", sent_at: now, metadata: { source: "paz-self-chat" } },
+        { conversation_id: pazConversationId, direction: "outgoing", sender: "PAZ", type: "text", content: respostaDireta, status: "delivered", sent_at: now, metadata: { source: "paz-direct" } },
+      ]).catch(() => {});
+    }
+    await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, respostaDireta);
+    return;
+  }
+  // ── Fim do bypass — segue para IA ──────────────────────────────────────────
 
   // Todos os clientes ativos no CRM (para PAZ saber quem existe)
   const clientesAtivos = await buscarClientesAtivos(sb, ownerId);
