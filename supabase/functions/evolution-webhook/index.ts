@@ -107,8 +107,11 @@ Deno.serve(async (req) => {
   if (client) {
     clientId = client.id;
   } else {
-    const { data: newClient, error: clientErr } = await supabase.from("clients").insert({ owner_id: ownerId, nome: pushName, whatsapp: `+${rawPhone}`, origem: "whatsapp", etapa_funil: "novo_lead", tags: ["lead_inbound"] }).select("id").single();
-    if (clientErr || !newClient) return new Response("Error creating client", { status: 500 });
+    const { data: newClient, error: clientErr } = await supabase.from("clients").insert({ owner_id: ownerId, nome: pushName, whatsapp: `+${rawPhone}`, origem_lead: "whatsapp", etapa_funil: "novo_lead", tags: ["lead_inbound"] }).select("id").single();
+    if (clientErr || !newClient) {
+      console.error("Erro ao criar cliente:", clientErr);
+      return new Response("Error creating client", { status: 500 });
+    }
     clientId = newClient.id;
   }
 
