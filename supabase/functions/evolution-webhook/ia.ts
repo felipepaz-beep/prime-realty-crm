@@ -17,16 +17,19 @@ interface ProcessarMensagemIaInput {
   };
 }
 
-async function buscarChaveAnthropic(supabase: SupabaseClient): Promise<string | null> {
+async function buscarChaveOpenAI(supabase: SupabaseClient): Promise<string | null> {
+  const envKey = Deno.env.get("OPENAI_API_KEY");
+  if (envKey) return envKey;
+
   const { data } = await supabase
     .from("integrations")
     .select("configuration")
-    .eq("provider", "claude")
+    .eq("provider", "openai")
     .eq("status", "connected")
     .maybeSingle();
 
   const cfg = (data?.configuration ?? {}) as Record<string, string>;
-  return cfg.anthropic_api_key || cfg.api_key || null;
+  return cfg.openai_api_key || cfg.api_key || null;
 }
 
 async function buscarHistorico(
@@ -44,42 +47,44 @@ async function buscarHistorico(
   return (data ?? []).reverse();
 }
 
-async function gerarRespostaAnthropic(
+async function gerarRespostaOpenAI(
   chave: string,
   historico: string,
   mensagemAtual: string
 ): Promise<string> {
-  const prompt = `Você é Felipe Santos, corretor de imóveis autônomo no Brasil. Responda pelo WhatsApp de forma natural, profissional e breve (máximo 3 linhas).
+  const systemPrompt = `Você é Felipe Santos, corretor de imóveis autônomo no Brasil. Responda pelo WhatsApp de forma natural, profissional e breve (máximo 3 linhas). Responda APENAS com o texto da mensagem, sem explicações.`;
 
-HISTÓRICO RECENTE:
+  const userPrompt = `HISTÓRICO RECENTE:
 ${historico}
 
 ÚLTIMA MENSAGEM DO CLIENTE:
-"${mensagemAtual}"
+"${mensagemAtual}"`;
 
-Responda APENAS com o texto da mensagem, sem explicações.`;
-
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
-      "x-api-key": chave,
-      "anthropic-version": "2023-06-01",
+      Authorization: `Bearer ${chave}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model: "gpt-4o-mini",
       max_tokens: 300,
-      messages: [{ role: "user", content: prompt }],
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
     }),
   });
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Anthropic ${res.status}: ${text.slice(0, 200)}`);
+    throw new Error(`OpenAI ${res.status}: ${text.slice(0, 200)}`);
   }
 
-  const json = (await res.json()) as { content?: Array<{ text?: string }> };
-  return json.content?.[0]?.text?.trim() ?? "";
+  const json = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  return json.choices?.[0]?.message?.content?.trim() ?? "";
 }
 
 async function enviarRespostaEvolution(
@@ -111,13 +116,13 @@ export async function processarMensagemIa(input: ProcessarMensagemIaInput): Prom
   const { supabase, clienteId, conversationId, mensagem, telefone, evolutionConfig } = input;
 
   try {
-    const [anthropicKey, historico] = await Promise.all([
-      buscarChaveAnthropic(supabase),
+    const [openaiKey, historico] = await Promise.all([
+      buscarChaveOpenAI(supabase),
       buscarHistorico(supabase, conversationId),
     ]);
 
-    if (!anthropicKey) {
-      console.log("IA: chave Anthropic não configurada");
+    if (!openaiKey) {
+      console.log("IA: chave OpenAI não configurada");
       return;
     }
 
@@ -125,17 +130,15 @@ export async function processarMensagemIa(input: ProcessarMensagemIaInput): Prom
       .map((m) => `${m.direction === "outgoing" ? "EU" : m.sender}: ${m.content}`)
       .join("\n");
 
-    const resposta = await gerarRespostaAnthropic(anthropicKey, historicoFormatado, mensagem);
+    const resposta = await gerarRespostaOpenAI(openaiKey, historicoFormatado, mensagem);
 
     if (!resposta) {
       console.log("IA: resposta vazia");
       return;
     }
 
-    // Envia pelo WhatsApp
     await enviarRespostaEvolution(evolutionConfig, telefone, resposta);
 
-    // Salva a mensagem de saída no CRM
     const { error } = await supabase.from("messages").insert({
       conversation_id: conversationId,
       direction: "outgoing",
