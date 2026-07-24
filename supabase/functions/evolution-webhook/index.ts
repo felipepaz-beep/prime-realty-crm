@@ -541,369 +541,143 @@ async function executarAcao(params: {
     return buscarClientePorNome(sb, ownerId, acao.client_name);
   };
 
-  // ── MOVER_CRM ────────────────────────────────────────────────────────────────
   if (acao.tipo === "MOVER_CRM") {
     const etapa = normalizarEtapa(acao.etapa ?? "");
     if (!etapa) return "⚠️ Etapa não reconhecida.";
     if (!acao.client_name) return "⚠️ Me diz o nome do cliente para mover.";
-
     const cliente = await resolverCliente();
     if (!cliente) return `⚠️ Cliente "${acao.client_name}" não encontrado no CRM.`;
-
     await sb.from("clients").update({ etapa_funil: etapa }).eq("id", cliente.id);
     if (ownerId)
-      await registrarTimelineEdge(
-        sb,
-        ownerId,
-        cliente.id,
-        "pipeline",
-        "etapa_alterada",
-        `Etapa alterada para ${CRM_LABELS[etapa] ?? etapa}`,
-        undefined,
-        { etapa_nova: etapa },
-      );
+      await registrarTimelineEdge(sb, ownerId, cliente.id, "pipeline", "etapa_alterada",
+        `Etapa alterada para ${CRM_LABELS[etapa] ?? etapa}`, undefined, { etapa_nova: etapa });
     return `✅ *${cliente.nome}* → *${CRM_LABELS[etapa] ?? etapa}*`;
   }
 
-  // ── CRIAR_LEAD ────────────────────────────────────────────────────────────────
   if (acao.tipo === "CRIAR_LEAD") {
     const nome = acao.client_name;
     if (!nome) return "⚠️ Me diz o nome do lead pra adicionar.";
-
     const jaExiste = await buscarClientePorNome(sb, ownerId, nome);
-    if (jaExiste)
-      return `⚠️ *${jaExiste.nome}* já está no CRM (${CRM_LABELS[jaExiste.etapa_funil ?? ""] ?? "Lead"}).`;
-
+    if (jaExiste) return `⚠️ *${jaExiste.nome}* já está no CRM (${CRM_LABELS[jaExiste.etapa_funil ?? ""] ?? "Lead"}).`;
     const contato = await buscarContatoNasConversas(sb, ownerId, nome);
     const phone = acao.client_phone?.replace(/\D/g, "") || contato?.phone || null;
-
-    const { data: novoCliente, error: createErr } = await sb
-      .from("clients")
-      .insert({
-        owner_id: ownerId,
-        nome: contato?.nome ?? nome,
-        whatsapp: phone,
-        telefone: phone,
-        email: acao.client_email ?? null,
-        etapa_funil: normalizarEtapa(acao.etapa ?? "novo_lead") || "novo_lead",
-      })
-      .select("id")
-      .single();
-
-    if (createErr || !novoCliente)
-      return `⚠️ Erro ao criar lead: ${createErr?.message ?? "desconhecido"}`;
-
-    if (contato) {
-      await sb
-        .from("conversations")
-        .update({ client_id: novoCliente.id })
-        .eq("id", contato.conversationId);
-    }
-
-    if (ownerId)
-      await registrarTimelineEdge(
-        sb,
-        ownerId,
-        novoCliente.id,
-        "ciclo_vida",
-        "cliente_criado",
-        `${contato?.nome ?? nome} adicionado ao CRM via PAZ`,
-      );
-
+    const { data: novoCliente, error: createErr } = await sb.from("clients").insert({
+      owner_id: ownerId, nome: contato?.nome ?? nome, whatsapp: phone, telefone: phone,
+      email: acao.client_email ?? null, etapa_funil: normalizarEtapa(acao.etapa ?? "novo_lead") || "novo_lead",
+    }).select("id").single();
+    if (createErr || !novoCliente) return `⚠️ Erro ao criar lead: ${createErr?.message ?? "desconhecido"}`;
+    if (contato) await sb.from("conversations").update({ client_id: novoCliente.id }).eq("id", contato.conversationId);
+    if (ownerId) await registrarTimelineEdge(sb, ownerId, novoCliente.id, "ciclo_vida", "cliente_criado", `${contato?.nome ?? nome} adicionado ao CRM via PAZ`);
     const phoneStr = phone ? `\n📱 +${phone}` : "\n📌 _Sem número ainda._";
     return `✅ *${contato?.nome ?? nome}* adicionado como Novo Lead!${phoneStr}`;
   }
 
-  // ── REGISTRAR_ATIVIDADE ───────────────────────────────────────────────────────
   if (acao.tipo === "REGISTRAR_ATIVIDADE") {
     const nome = acao.client_name;
     if (!nome) return "⚠️ Me diz com quem foi a atividade.";
-
     const cliente = await resolverCliente();
     if (!cliente) return `⚠️ Cliente "${nome}" não encontrado no CRM.`;
-
     const tipo = (acao.activity_type ?? "MEETING").toUpperCase();
-    const titulo =
-      acao.activity_title ?? `${ACTIVITY_TYPE_LABELS[tipo] ?? tipo} com ${cliente.nome}`;
+    const titulo = acao.activity_title ?? `${ACTIVITY_TYPE_LABELS[tipo] ?? tipo} com ${cliente.nome}`;
     const agora = new Date().toISOString();
-
-    const { data: act, error: actErr } = await sb
-      .from("activities")
-      .insert({
-        owner_id: ownerId,
-        client_id: cliente.id,
-        type: tipo,
-        title: titulo,
-        description: acao.activity_description ?? null,
-        status: "COMPLETED",
-        priority: (acao.priority ?? "MEDIUM").toUpperCase(),
-        scheduled_at: acao.scheduled_at ?? acao.completed_at ?? agora,
-        completed_at: acao.completed_at ?? agora,
-        location: acao.location ?? null,
-        metadata: { outcome: acao.activity_outcome ?? null, source: "paz" },
-      })
-      .select("id")
-      .single();
-
+    const { data: act, error: actErr } = await sb.from("activities").insert({
+      owner_id: ownerId, client_id: cliente.id, type: tipo, title: titulo,
+      description: acao.activity_description ?? null, status: "COMPLETED",
+      priority: (acao.priority ?? "MEDIUM").toUpperCase(),
+      scheduled_at: acao.scheduled_at ?? acao.completed_at ?? agora,
+      completed_at: acao.completed_at ?? agora, location: acao.location ?? null,
+      metadata: { outcome: acao.activity_outcome ?? null, source: "paz" },
+    }).select("id").single();
     if (actErr || !act) return `⚠️ Erro ao registrar atividade: ${actErr?.message ?? "?"}`;
-
-    const timelineEvent =
-      tipo === "CALL"
-        ? "ligacao_realizada"
-        : tipo === "VISIT"
-          ? "visita_realizada"
-          : tipo === "EMAIL"
-            ? "email_enviado"
-            : "followup_realizado";
-
-    if (ownerId)
-      await registrarTimelineEdge(
-        sb,
-        ownerId,
-        cliente.id,
-        "comunicacao",
-        timelineEvent,
-        titulo,
-        acao.activity_outcome ?? acao.activity_description ?? undefined,
-        { activity_id: act.id },
-      );
-
+    const timelineEvent = tipo === "CALL" ? "ligacao_realizada" : tipo === "VISIT" ? "visita_realizada" : tipo === "EMAIL" ? "email_enviado" : "followup_realizado";
+    if (ownerId) await registrarTimelineEdge(sb, ownerId, cliente.id, "comunicacao", timelineEvent, titulo, acao.activity_outcome ?? acao.activity_description ?? undefined, { activity_id: act.id });
     const outcomeStr = acao.activity_outcome ? `\n📋 _${acao.activity_outcome}_` : "";
     return `✅ *${ACTIVITY_TYPE_LABELS[tipo] ?? tipo}* com *${cliente.nome}* registrada!${outcomeStr}`;
   }
 
-  // ── CRIAR_TAREFA ──────────────────────────────────────────────────────────────
   if (acao.tipo === "CRIAR_TAREFA") {
     const tipo = (acao.activity_type ?? "TASK").toUpperCase();
     const titulo = acao.task_title ?? acao.activity_title ?? `${ACTIVITY_TYPE_LABELS[tipo] ?? tipo}`;
     const dueAt = acao.due_at ?? acao.scheduled_at ?? null;
-
     let clienteId: string | null = null;
     let clienteNome = "sem cliente";
     if (acao.client_name) {
       const cliente = await resolverCliente();
-      if (cliente) {
-        clienteId = cliente.id;
-        clienteNome = cliente.nome;
-      }
+      if (cliente) { clienteId = cliente.id; clienteNome = cliente.nome; }
     }
-
-    const { data: task, error: taskErr } = await sb
-      .from("activities")
-      .insert({
-        owner_id: ownerId,
-        client_id: clienteId,
-        type: tipo,
-        title: titulo,
-        description: acao.activity_description ?? null,
-        status: "PENDING",
-        priority: (acao.priority ?? "MEDIUM").toUpperCase(),
-        scheduled_at: dueAt,
-        due_at: dueAt,
-        location: acao.location ?? null,
-        metadata: { source: "paz" },
-      })
-      .select("id")
-      .single();
-
+    const { data: task, error: taskErr } = await sb.from("activities").insert({
+      owner_id: ownerId, client_id: clienteId, type: tipo, title: titulo,
+      description: acao.activity_description ?? null, status: "PENDING",
+      priority: (acao.priority ?? "MEDIUM").toUpperCase(),
+      scheduled_at: dueAt, due_at: dueAt, location: acao.location ?? null,
+      metadata: { source: "paz" },
+    }).select("id").single();
     if (taskErr || !task) return `⚠️ Erro ao criar tarefa: ${taskErr?.message ?? "?"}`;
-
-    if (ownerId && clienteId)
-      await registrarTimelineEdge(
-        sb,
-        ownerId,
-        clienteId,
-        "tarefa",
-        "tarefa_criada",
-        titulo,
-        undefined,
-        { activity_id: task.id, due_at: dueAt },
-      );
-
-    const dueStr = dueAt
-      ? `\n📅 ${new Date(dueAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}`
-      : "";
+    if (ownerId && clienteId) await registrarTimelineEdge(sb, ownerId, clienteId, "tarefa", "tarefa_criada", titulo, undefined, { activity_id: task.id, due_at: dueAt });
+    const dueStr = dueAt ? `\n📅 ${new Date(dueAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}` : "";
     const clienteStr = clienteNome !== "sem cliente" ? ` com *${clienteNome}*` : "";
     return `✅ Tarefa criada: *${titulo}*${clienteStr}${dueStr}`;
   }
 
-  // ── REGISTRAR_VENDA ───────────────────────────────────────────────────────────
   if (acao.tipo === "REGISTRAR_VENDA") {
     const nome = acao.client_name;
     if (!nome) return "⚠️ Me diz o nome do cliente da venda.";
-
     const cliente = await resolverCliente();
     if (!cliente) return `⚠️ Cliente "${nome}" não encontrado no CRM.`;
-
     const valor = acao.deal_value ?? 0;
-    await sb
-      .from("clients")
-      .update({
-        status: "ganho",
-        etapa_funil: "fechado_ganho",
-        ...(valor > 0 ? { valor_negociado: valor } : {}),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", cliente.id);
-
-    if (ownerId)
-      await registrarTimelineEdge(
-        sb,
-        ownerId,
-        cliente.id,
-        "negocio",
-        "venda_concluida",
-        `Venda concluída com ${cliente.nome}`,
-        valor > 0 ? `Valor: R$ ${valor.toLocaleString("pt-BR")}` : undefined,
-        { valor_negociado: valor },
-      );
-
-    const valorStr =
-      valor > 0 ? `\n💰 R$ ${valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "";
+    await sb.from("clients").update({ status: "ganho", etapa_funil: "fechado_ganho", ...(valor > 0 ? { valor_negociado: valor } : {}), updated_at: new Date().toISOString() }).eq("id", cliente.id);
+    if (ownerId) await registrarTimelineEdge(sb, ownerId, cliente.id, "negocio", "venda_concluida", `Venda concluída com ${cliente.nome}`, valor > 0 ? `Valor: R$ ${valor.toLocaleString("pt-BR")}` : undefined, { valor_negociado: valor });
+    const valorStr = valor > 0 ? `\n💰 R$ ${valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "";
     return `🎉 *VENDA REGISTRADA!*\n\n*${cliente.nome}* → *Vendido ✅*${valorStr}`;
   }
 
-  // ── REGISTRAR_PERDA ───────────────────────────────────────────────────────────
   if (acao.tipo === "REGISTRAR_PERDA") {
     const nome = acao.client_name;
     if (!nome) return "⚠️ Me diz o nome do cliente.";
-
     const cliente = await resolverCliente();
     if (!cliente) return `⚠️ Cliente "${nome}" não encontrado no CRM.`;
-
-    await sb
-      .from("clients")
-      .update({
-        status: "perdido",
-        etapa_funil: "fechado_perdido",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", cliente.id);
-
-    if (ownerId)
-      await registrarTimelineEdge(
-        sb,
-        ownerId,
-        cliente.id,
-        "negocio",
-        "etapa_alterada",
-        `Negócio perdido com ${cliente.nome}`,
-        acao.motivo ?? undefined,
-        { etapa_nova: "fechado_perdido", motivo: acao.motivo },
-      );
-
+    await sb.from("clients").update({ status: "perdido", etapa_funil: "fechado_perdido", updated_at: new Date().toISOString() }).eq("id", cliente.id);
+    if (ownerId) await registrarTimelineEdge(sb, ownerId, cliente.id, "negocio", "etapa_alterada", `Negócio perdido com ${cliente.nome}`, acao.motivo ?? undefined, { etapa_nova: "fechado_perdido", motivo: acao.motivo });
     const motivoStr = acao.motivo ? `\n_Motivo: ${acao.motivo}_` : "";
     return `📌 *${cliente.nome}* marcado como *Perdido ❌*${motivoStr}`;
   }
 
-  // ── ADICIONAR_NOTA ────────────────────────────────────────────────────────────
   if (acao.tipo === "ADICIONAR_NOTA") {
     const nota = acao.nota ?? acao.activity_description ?? acao.texto;
     if (!nota) return "⚠️ Qual a nota?";
     if (!acao.client_name) return "⚠️ Diz o nome do cliente para salvar a nota.";
-
     const cliente = await resolverCliente();
     if (!cliente) return `⚠️ Cliente "${acao.client_name}" não encontrado.`;
-
-    await sb.from("activities").insert({
-      owner_id: ownerId,
-      client_id: cliente.id,
-      type: "TASK",
-      title: "Nota adicionada",
-      description: nota,
-      status: "COMPLETED",
-      priority: "LOW",
-      completed_at: new Date().toISOString(),
-      metadata: { source: "paz", is_note: true },
-    });
-
-    if (ownerId)
-      await registrarTimelineEdge(
-        sb,
-        ownerId,
-        cliente.id,
-        "documento",
-        "nota_adicionada",
-        "Nota adicionada via PAZ",
-        nota.slice(0, 300),
-      );
-
+    await sb.from("activities").insert({ owner_id: ownerId, client_id: cliente.id, type: "TASK", title: "Nota adicionada", description: nota, status: "COMPLETED", priority: "LOW", completed_at: new Date().toISOString(), metadata: { source: "paz", is_note: true } });
+    if (ownerId) await registrarTimelineEdge(sb, ownerId, cliente.id, "documento", "nota_adicionada", "Nota adicionada via PAZ", nota.slice(0, 300));
     return `📝 Nota salva em *${cliente.nome}*:\n_${nota.slice(0, 150)}${nota.length > 150 ? "..." : ""}_`;
   }
 
-  // ── AGENDAR_FOLLOWUP ──────────────────────────────────────────────────────────
   if (acao.tipo === "AGENDAR_FOLLOWUP") {
     const nome = acao.client_name;
     if (!nome) return "⚠️ Com quem é o follow-up?";
-
     const cliente = await resolverCliente();
     if (!cliente) return `⚠️ Cliente "${nome}" não encontrado.`;
-
     const dataFollowup = acao.due_at ?? acao.scheduled_at ?? null;
-
-    if (dataFollowup) {
-      await sb.from("clients").update({ proximo_followup: dataFollowup }).eq("id", cliente.id);
-    }
-
-    await sb.from("activities").insert({
-      owner_id: ownerId,
-      client_id: cliente.id,
-      type: "FOLLOWUP",
-      title: acao.activity_title ?? `Follow-up com ${cliente.nome}`,
-      description: acao.activity_description ?? null,
-      status: "PENDING",
-      priority: (acao.priority ?? "MEDIUM").toUpperCase(),
-      scheduled_at: dataFollowup,
-      due_at: dataFollowup,
-      metadata: { source: "paz" },
-    });
-
-    if (ownerId)
-      await registrarTimelineEdge(
-        sb,
-        ownerId,
-        cliente.id,
-        "comunicacao",
-        "followup_criado",
-        `Follow-up agendado com ${cliente.nome}`,
-        undefined,
-        { due_at: dataFollowup },
-      );
-
-    const dataStr = dataFollowup
-      ? ` para *${new Date(dataFollowup).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}*`
-      : "";
+    if (dataFollowup) await sb.from("clients").update({ proximo_followup: dataFollowup }).eq("id", cliente.id);
+    await sb.from("activities").insert({ owner_id: ownerId, client_id: cliente.id, type: "FOLLOWUP", title: acao.activity_title ?? `Follow-up com ${cliente.nome}`, description: acao.activity_description ?? null, status: "PENDING", priority: (acao.priority ?? "MEDIUM").toUpperCase(), scheduled_at: dataFollowup, due_at: dataFollowup, metadata: { source: "paz" } });
+    if (ownerId) await registrarTimelineEdge(sb, ownerId, cliente.id, "comunicacao", "followup_criado", `Follow-up agendado com ${cliente.nome}`, undefined, { due_at: dataFollowup });
+    const dataStr = dataFollowup ? ` para *${new Date(dataFollowup).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}*` : "";
     return `📅 Follow-up${dataStr} agendado com *${cliente.nome}*`;
   }
 
-  // ── ATUALIZAR_CLIENTE ─────────────────────────────────────────────────────────
   if (acao.tipo === "ATUALIZAR_CLIENTE") {
     const nome = acao.client_name;
     if (!nome) return "⚠️ Me diz o nome do cliente.";
-
     const cliente = await resolverCliente();
     if (!cliente) return `⚠️ Cliente "${nome}" não encontrado.`;
-
     const updates: Record<string, unknown> = {};
     if (acao.client_phone) updates.telefone = updates.whatsapp = acao.client_phone.replace(/\D/g, "");
     if (acao.client_email) updates.email = acao.client_email;
     if (acao.temperatura) updates.temperatura = acao.temperatura;
-
     if (Object.keys(updates).length === 0) return "⚠️ Nenhum dado para atualizar.";
-
     await sb.from("clients").update(updates).eq("id", cliente.id);
-    if (ownerId)
-      await registrarTimelineEdge(
-        sb,
-        ownerId,
-        cliente.id,
-        "ciclo_vida",
-        "cliente_atualizado",
-        `Dados de ${cliente.nome} atualizados via PAZ`,
-        undefined,
-        { campos: Object.keys(updates) },
-      );
-
+    if (ownerId) await registrarTimelineEdge(sb, ownerId, cliente.id, "ciclo_vida", "cliente_atualizado", `Dados de ${cliente.nome} atualizados via PAZ`, undefined, { campos: Object.keys(updates) });
     return `✅ *${cliente.nome}* atualizado: ${Object.keys(updates).join(", ")}`;
   }
 
@@ -921,89 +695,39 @@ async function executarComandoDireto(params: {
   const { sb, ownerId, evolutionConfig, mensagem } = params;
   const msg = mensagem.trim();
 
-  const mCriar = msg.match(
-    /^(?:paz\s+)?(?:adicione?|adiciona(?:r)?|cadastra(?:r)?)\s+(.+?)(?:\s+(?:no|ao)\s+(?:crm|sistema))?$/i,
-  );
+  const mCriar = msg.match(/^(?:paz\s+)?(?:adicione?|adiciona(?:r)?|cadastra(?:r)?)\s+(.+?)(?:\s+(?:no|ao)\s+(?:crm|sistema))?$/i);
   if (mCriar) {
     const nome = mCriar[1].replace(/\s+(?:no|ao)\s+(?:crm|sistema)\s*$/i, "").trim();
-    if (nome)
-      return executarAcao({
-        sb,
-        ownerId,
-        evolutionConfig,
-        acao: { tipo: "CRIAR_LEAD", client_name: nome },
-      });
+    if (nome) return executarAcao({ sb, ownerId, evolutionConfig, acao: { tipo: "CRIAR_LEAD", client_name: nome } });
   }
 
-  const mMover = msg.match(
-    /^(?:paz\s+)?(?:mov[ae](?:r)?|mud[ae]|transfer[ei](?:r[ae]?)?|coloca?(?:r)?)\s+(?:o\s+|a\s+)?(.+?)\s+(?:para?|pra|em|no\s+estágio|na\s+etapa)\s+(.+?)$/i,
-  );
+  const mMover = msg.match(/^(?:paz\s+)?(?:mov[ae](?:r)?|mud[ae]|transfer[ei](?:r[ae]?)?|coloca?(?:r)?)\s+(?:o\s+|a\s+)?(.+?)\s+(?:para?|pra|em|no\s+estágio|na\s+etapa)\s+(.+?)$/i);
   if (mMover) {
     const [, nomeCliente, etapaRaw] = mMover;
-    return executarAcao({
-      sb,
-      ownerId,
-      evolutionConfig,
-      acao: { tipo: "MOVER_CRM", client_name: nomeCliente.trim(), etapa: etapaRaw.trim() },
-    });
+    return executarAcao({ sb, ownerId, evolutionConfig, acao: { tipo: "MOVER_CRM", client_name: nomeCliente.trim(), etapa: etapaRaw.trim() } });
   }
 
-  const mVenda = msg.match(
-    /^(?:paz\s+)?(?:fechei|vend(?:a|i|eu)|vendido|ganho|contrato\s+assinado)\b.*?(?:com\s+)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-Za-zÀ-Ü][a-zà-ü]+)*)/i,
-  );
+  const mVenda = msg.match(/^(?:paz\s+)?(?:fechei|vend(?:a|i|eu)|vendido|ganho|contrato\s+assinado)\b.*?(?:com\s+)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-Za-zÀ-Ü][a-zà-ü]+)*)/i);
   if (mVenda) {
     const nomeMatch = mVenda[1]?.trim();
     const valorMatch = msg.match(/r\$?\s*([\d.,]+)/i);
-    const valor = valorMatch
-      ? parseFloat(valorMatch[1].replace(/\./g, "").replace(",", "."))
-      : undefined;
-    if (nomeMatch)
-      return executarAcao({
-        sb,
-        ownerId,
-        evolutionConfig,
-        acao: { tipo: "REGISTRAR_VENDA", client_name: nomeMatch, deal_value: valor },
-      });
+    const valor = valorMatch ? parseFloat(valorMatch[1].replace(/\./g, "").replace(",", ".")) : undefined;
+    if (nomeMatch) return executarAcao({ sb, ownerId, evolutionConfig, acao: { tipo: "REGISTRAR_VENDA", client_name: nomeMatch, deal_value: valor } });
   }
 
-  const mPerda = msg.match(
-    /^(?:paz\s+)?(?:perdeu|perdi|não\s+fechou|negócio\s+perdido)\b.*?(?:com\s+(?:o\s+|a\s+)?)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-Za-zÀ-Ü][a-zà-ü]+)*)/i,
-  );
+  const mPerda = msg.match(/^(?:paz\s+)?(?:perdeu|perdi|não\s+fechou|negócio\s+perdido)\b.*?(?:com\s+(?:o\s+|a\s+)?)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-Za-zÀ-Ü][a-zà-ü]+)*)/i);
   if (mPerda) {
     const nomeMatch = mPerda[1]?.trim();
     if (nomeMatch) {
       const motivoMatch = msg.match(/(?:por(?:que)?|motivo)[:\s]+(.+)$/i);
-      return executarAcao({
-        sb,
-        ownerId,
-        evolutionConfig,
-        acao: {
-          tipo: "REGISTRAR_PERDA",
-          client_name: nomeMatch,
-          motivo: motivoMatch?.[1]?.trim(),
-        },
-      });
+      return executarAcao({ sb, ownerId, evolutionConfig, acao: { tipo: "REGISTRAR_PERDA", client_name: nomeMatch, motivo: motivoMatch?.[1]?.trim() } });
     }
   }
 
-  if (
-    /(?:quais|list[ae]|me\s+(?:diz|fala|mostra))\s+(?:os\s+|meus\s+)?clientes|clientes\s+(?:que\s+tenho\s+)?(?:no|do)\s+crm|meus\s+clientes/i.test(
-      msg,
-    )
-  ) {
+  if (/(?:quais|list[ae]|me\s+(?:diz|fala|mostra))\s+(?:os\s+|meus\s+)?clientes|clientes\s+(?:que\s+tenho\s+)?(?:no|do)\s+crm|meus\s+clientes/i.test(msg)) {
     const clientes = await buscarClientesAtivos(sb, ownerId);
     if (!clientes.length) return "📭 Nenhum cliente no CRM ainda.";
-    return (
-      `📋 *Seus ${clientes.length} clientes:*\n` +
-      clientes
-        .map((c) => {
-          const valor = c.valor_negociado
-            ? ` — R$ ${c.valor_negociado.toLocaleString("pt-BR")}`
-            : "";
-          return `• *${c.nome}* — ${CRM_LABELS[c.etapa_funil] ?? c.etapa_funil}${valor}`;
-        })
-        .join("\n")
-    );
+    return `📋 *Seus ${clientes.length} clientes:*\n` + clientes.map((c) => { const valor = c.valor_negociado ? ` — R$ ${c.valor_negociado.toLocaleString("pt-BR")}` : ""; return `• *${c.nome}* — ${CRM_LABELS[c.etapa_funil] ?? c.etapa_funil}${valor}`; }).join("\n");
   }
 
   return null;
@@ -1021,9 +745,7 @@ async function paz(params: {
 
   const openaiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
   if (!openaiKey) {
-    await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ OpenAI não configurada.").catch(
-      () => {},
-    );
+    await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ OpenAI não configurada.").catch(() => {});
     return;
   }
 
@@ -1032,103 +754,38 @@ async function paz(params: {
     let historicoFelipePaz: Array<{ role: "user" | "assistant"; content: string }> = [];
     if (ownerId) {
       pazConversationId = await buscarOuCriarConversaPaz(sb, ownerId);
-      if (pazConversationId) {
-        historicoFelipePaz = await buscarHistoricoPazMessages(sb, pazConversationId, 12);
-      }
+      if (pazConversationId) historicoFelipePaz = await buscarHistoricoPazMessages(sb, pazConversationId, 12);
     }
-    console.log(
-      `[PAZ] memória: convId=${pazConversationId ?? "null"}, msgs=${historicoFelipePaz.length}`,
-    );
 
-    // ── Tenta executar comando direto (sem IA) ──────────────────────────────────
-    const respostaDireta = await executarComandoDireto({
-      sb,
-      ownerId,
-      evolutionConfig,
-      mensagem,
-    }).catch((err) => {
-      console.warn("[PAZ] Erro no comando direto:", err);
-      return null;
-    });
+    const respostaDireta = await executarComandoDireto({ sb, ownerId, evolutionConfig, mensagem }).catch((err) => { console.warn("[PAZ] Erro no comando direto:", err); return null; });
 
     if (respostaDireta !== null) {
       if (pazConversationId) {
         const now = new Date().toISOString();
-        await sb
-          .from("messages")
-          .insert([
-            {
-              conversation_id: pazConversationId,
-              direction: "incoming",
-              sender: "Felipe",
-              type: "text",
-              content: mensagem,
-              status: "delivered",
-              sent_at: now,
-              metadata: { source: "paz-self-chat" },
-            },
-            {
-              conversation_id: pazConversationId,
-              direction: "outgoing",
-              sender: "PAZ",
-              type: "text",
-              content: respostaDireta,
-              status: "delivered",
-              sent_at: now,
-              metadata: { source: "paz-direct" },
-            },
-          ])
-          .catch(() => {});
+        await sb.from("messages").insert([
+          { conversation_id: pazConversationId, direction: "incoming", sender: "Felipe", type: "text", content: mensagem, status: "delivered", sent_at: now, metadata: { source: "paz-self-chat" } },
+          { conversation_id: pazConversationId, direction: "outgoing", sender: "PAZ", type: "text", content: respostaDireta, status: "delivered", sent_at: now, metadata: { source: "paz-direct" } },
+        ]).catch(() => {});
       }
       await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, respostaDireta);
       return;
     }
 
-    // ── Segue para IA ───────────────────────────────────────────────────────────
     const clientesAtivos = await buscarClientesAtivos(sb, ownerId);
-
-    const { data: rawUnknown } = await sb
-      .from("conversations")
-      .select("metadata")
-      .eq("owner_id", ownerId)
-      .is("client_id", null)
-      .order("updated_at", { ascending: false })
-      .limit(10);
-
-    const contatosDesconhecidos = (rawUnknown ?? [])
-      .map((c) => c.metadata as Record<string, unknown>)
-      .filter((m) => m?.push_name);
-
-    const dataAtual = new Date().toLocaleString("pt-BR", {
-      timeZone: "America/Sao_Paulo",
-      dateStyle: "full",
-      timeStyle: "short",
-    });
+    const { data: rawUnknown } = await sb.from("conversations").select("metadata").eq("owner_id", ownerId).is("client_id", null).order("updated_at", { ascending: false }).limit(10);
+    const contatosDesconhecidos = (rawUnknown ?? []).map((c) => c.metadata as Record<string, unknown>).filter((m) => m?.push_name);
+    const dataAtual = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "full", timeStyle: "short" });
 
     let contextoCrm = "";
     if (clientesAtivos.length > 0) {
-      contextoCrm =
-        `\n\n📋 *Clientes no CRM:*\n` +
-        clientesAtivos
-          .map((c) => {
-            const valor = c.valor_negociado
-              ? ` — R$ ${c.valor_negociado.toLocaleString("pt-BR")}`
-              : "";
-            return `• *${c.nome}* — ${CRM_LABELS[c.etapa_funil] ?? c.etapa_funil}${valor}`;
-          })
-          .join("\n");
+      contextoCrm = `\n\n📋 *Clientes no CRM:*\n` + clientesAtivos.map((c) => { const valor = c.valor_negociado ? ` — R$ ${c.valor_negociado.toLocaleString("pt-BR")}` : ""; return `• *${c.nome}* — ${CRM_LABELS[c.etapa_funil] ?? c.etapa_funil}${valor}`; }).join("\n");
     }
 
     let contextoDesconhecidos = "";
     if (contatosDesconhecidos.length > 0) {
-      const linhas = contatosDesconhecidos.map(
-        (m) => `• *${m.push_name}* (+${(m.remote_jid as string)?.split("@")[0] ?? "?"})`,
-      );
-      contextoDesconhecidos =
-        `\n\n📥 *Contatos no WhatsApp sem cadastro no CRM:*\n` + linhas.join("\n");
+      contextoDesconhecidos = `\n\n📥 *Contatos no WhatsApp sem cadastro no CRM:*\n` + contatosDesconhecidos.map((m) => `• *${m.push_name}* (+${(m.remote_jid as string)?.split("@")[0] ?? "?"})`).join("\n");
     }
 
-    // Histórico de conversa do cliente mencionado
     let historicoCliente = "";
     const msgLower = mensagem.toLowerCase();
     for (const c of clientesAtivos) {
@@ -1136,25 +793,16 @@ async function paz(params: {
       if (primeiroNome.length >= 3 && msgLower.includes(primeiroNome)) {
         const cf = await buscarClientePorNome(sb, ownerId, c.nome);
         if (cf) {
-          const { data: conv } = await sb
-            .from("conversations")
-            .select("id")
-            .eq("client_id", cf.id)
-            .eq("channel", "whatsapp")
-            .eq("status", "open")
-            .maybeSingle();
+          const { data: conv } = await sb.from("conversations").select("id").eq("client_id", cf.id).eq("channel", "whatsapp").eq("status", "open").maybeSingle();
           if (conv) {
             const hist = await buscarHistoricoConversa(sb, conv.id, 20);
-            historicoCliente = hist
-              ? `\n\n📝 *Conversa com ${c.nome}:*\n${hist}`
-              : `\n\n📝 *${c.nome}* está no CRM mas sem mensagens registradas.`;
+            historicoCliente = hist ? `\n\n📝 *Conversa com ${c.nome}:*\n${hist}` : `\n\n📝 *${c.nome}* está no CRM mas sem mensagens registradas.`;
           }
         }
         break;
       }
     }
 
-    // ── System prompt ────────────────────────────────────────────────────────────
     const systemPrompt =
       `Você é PAZ — a assistente pessoal de vendas do corretor Felipe Paz no WhatsApp.\n\n` +
       `Hoje: ${dataAtual}\n\n` +
@@ -1178,11 +826,9 @@ async function paz(params: {
       `## EXEMPLOS\n` +
       `"Fechei a venda com o João Alves por R$ 45 mil hoje" →\n` +
       `{"resposta":"🎉 Incrível! Venda de R$ 45.000 com João Alves registrada!","acoes":[{"tipo":"REGISTRAR_VENDA","client_name":"João Alves","deal_value":45000}]}\n\n` +
-      `"Tive reunião com Maria Lima às 14h, ficou de visitar o apartamento na sexta" →\n` +
-      `{"resposta":"✅ Reunião com Maria registrada! Visita agendada para sexta.","acoes":[{"tipo":"REGISTRAR_ATIVIDADE","client_name":"Maria Lima","activity_type":"MEETING","activity_title":"Reunião com Maria Lima","completed_at":"${new Date().toISOString()}"},{"tipo":"CRIAR_TAREFA","client_name":"Maria Lima","activity_type":"VISIT","task_title":"Visita ao apartamento","due_at":"${new Date(Date.now() + 5 * 86400000).toISOString()}"}]}\n\n` +
       `## REGRAS\n` +
       `1. NUNCA invente dados — se faltam infos, use null e mencione na resposta o que está faltando\n` +
-      `2. Uma mensagem pode gerar MÚLTIPLAS ações — ex: criar lead + criar tarefa + registrar atividade\n` +
+      `2. Uma mensagem pode gerar MÚLTIPLAS ações\n` +
       `3. Datas/horas sempre em ISO 8601 baseadas em: ${dataAtual}\n` +
       `4. "Amanhã" = ${new Date(Date.now() + 86400000).toISOString().slice(0, 10)}, "semana que vem" = ${new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)}\n` +
       `5. Telefones: apenas dígitos com DDD (sem +55 ou espaços)\n` +
@@ -1190,102 +836,45 @@ async function paz(params: {
       `7. Retorne APENAS o JSON — sem texto fora do JSON\n` +
       `8. EXECUTE IMEDIATAMENTE — NUNCA peça confirmação antes de agir. Nunca diga "Você confirma?", "Posso prosseguir?", "Tem certeza?", "Preciso da sua aprovação explícita". Execute e confirme o resultado na resposta.\n` +
       `9. Se faltar algum dado, salve o básico e pergunte o restante DEPOIS de executar — nunca antes.\n` +
-      contextoCrm +
-      contextoDesconhecidos +
-      historicoCliente;
+      contextoCrm + contextoDesconhecidos + historicoCliente;
 
     try {
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          max_tokens: 1000,
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...historicoFelipePaz,
-            { role: "user", content: mensagem },
-          ],
-        }),
+        body: JSON.stringify({ model: "gpt-4o-mini", max_tokens: 1000, response_format: { type: "json_object" }, messages: [{ role: "system", content: systemPrompt }, ...historicoFelipePaz, { role: "user", content: mensagem }] }),
       });
 
-      if (!res.ok) {
-        await enviarWhatsApp(
-          evolutionConfig,
-          FELIPE_PHONE,
-          "⚠️ Erro ao processar. Tente novamente.",
-        );
-        return;
-      }
+      if (!res.ok) { await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ Erro ao processar. Tente novamente."); return; }
 
-      const json = (await res.json()) as {
-        choices?: Array<{ message?: { content?: string } }>;
-      };
+      const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
       const respostaCompleta = json.choices?.[0]?.message?.content?.trim() ?? "";
-
       const { texto, acoes } = parsearRespostaIA(respostaCompleta);
 
       if (pazConversationId) {
         const now = new Date().toISOString();
-        await sb
-          .from("messages")
-          .insert([
-            {
-              conversation_id: pazConversationId,
-              direction: "incoming",
-              sender: "Felipe",
-              type: "text",
-              content: mensagem,
-              status: "delivered",
-              sent_at: now,
-              metadata: { source: "paz-self-chat" },
-            },
-            {
-              conversation_id: pazConversationId,
-              direction: "outgoing",
-              sender: "PAZ",
-              type: "text",
-              content: texto || respostaCompleta,
-              status: "delivered",
-              sent_at: now,
-              metadata: { source: "paz-response", acoes_count: acoes.length },
-            },
-          ])
-          .catch((err) => console.warn("[PAZ] Erro ao salvar histórico:", err));
+        await sb.from("messages").insert([
+          { conversation_id: pazConversationId, direction: "incoming", sender: "Felipe", type: "text", content: mensagem, status: "delivered", sent_at: now, metadata: { source: "paz-self-chat" } },
+          { conversation_id: pazConversationId, direction: "outgoing", sender: "PAZ", type: "text", content: texto || respostaCompleta, status: "delivered", sent_at: now, metadata: { source: "paz-response", acoes_count: acoes.length } },
+        ]).catch((err) => console.warn("[PAZ] Erro ao salvar histórico:", err));
       }
 
-      if (texto) {
-        await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, texto);
-      }
+      if (texto) await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, texto);
 
       for (const acao of acoes) {
         if (acao.tipo === "CONVERSAR") continue;
         try {
           const resultado = await executarAcao({ sb, ownerId, evolutionConfig, acao });
           if (resultado) await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, resultado);
-        } catch (errAcao) {
-          console.error(`[PAZ] erro ao executar ação ${acao.tipo}:`, errAcao);
-        }
+        } catch (errAcao) { console.error(`[PAZ] erro ao executar ação ${acao.tipo}:`, errAcao); }
       }
     } catch (err) {
       console.error("[PAZ] erro →", err instanceof Error ? err.message : String(err));
-      await enviarWhatsApp(
-        evolutionConfig,
-        FELIPE_PHONE,
-        "⚠️ PAZ com erro. Tente novamente.",
-      ).catch(() => {});
+      await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ PAZ com erro. Tente novamente.").catch(() => {});
     }
   } catch (errFatal) {
-    console.error(
-      "[PAZ] erro fatal →",
-      errFatal instanceof Error ? errFatal.message : String(errFatal),
-    );
-    await enviarWhatsApp(
-      evolutionConfig,
-      FELIPE_PHONE,
-      `⚠️ PAZ travou: ${errFatal instanceof Error ? errFatal.message.slice(0, 120) : "erro desconhecido"}`,
-    ).catch(() => {});
+    console.error("[PAZ] erro fatal →", errFatal instanceof Error ? errFatal.message : String(errFatal));
+    await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, `⚠️ PAZ travou: ${errFatal instanceof Error ? errFatal.message.slice(0, 120) : "erro desconhecido"}`).catch(() => {});
   }
 }
 
@@ -1295,11 +884,7 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
   let payload: Record<string, unknown>;
-  try {
-    payload = await req.json();
-  } catch {
-    return new Response("Invalid JSON", { status: 400 });
-  }
+  try { payload = await req.json(); } catch { return new Response("Invalid JSON", { status: 400 }); }
 
   const rawEvent = ((payload.event as string) ?? "").toLowerCase().replace(/_/g, ".");
   if (rawEvent !== "messages.upsert") return new Response("OK", { status: 200 });
@@ -1318,17 +903,11 @@ Deno.serve(async (req) => {
   const message = data.message as Record<string, unknown>;
   const { content, type, attachment } = extractMessage(message || {});
 
-  const { data: integration } = await supabase
-    .from("integrations")
-    .select("owner_id, configuration")
-    .eq("provider", "whatsapp")
-    .eq("status", "connected")
-    .maybeSingle();
+  const { data: integration } = await supabase.from("integrations").select("owner_id, configuration").eq("provider", "whatsapp").eq("status", "connected").maybeSingle();
   if (!integration) return new Response("No integration", { status: 200 });
 
   const config = integration.configuration as Record<string, unknown>;
-  if (config?.instance_name && config.instance_name !== instanceName)
-    return new Response("Instance mismatch", { status: 200 });
+  if (config?.instance_name && config.instance_name !== instanceName) return new Response("Instance mismatch", { status: 200 });
 
   let ownerId = integration.owner_id as string | null;
   if (!ownerId) {
@@ -1338,96 +917,43 @@ Deno.serve(async (req) => {
 
   const evolutionConfig: EvolutionConfig = {
     apiKey: (config?.api_key as string) ?? "",
-    baseUrl: (
-      (config?.base_url as string) ?? "https://evolution-api-production-448e.up.railway.app"
-    ).replace(/\/$/, ""),
+    baseUrl: ((config?.base_url as string) ?? "https://evolution-api-production-448e.up.railway.app").replace(/\/$/, ""),
     instance: (config?.instance_name as string) ?? "prime-crm",
   };
 
-  // ─── Detecta mensagem de Felipe para PAZ ─────────────────────────────────────
   const felipeVariants = normalizePhone(FELIPE_PHONE).map((v) => v.replace(/\D/g, ""));
   const isSelfChat = felipeVariants.includes(rawPhone.replace(/\D/g, ""));
 
-  console.log(
-    `[WEBHOOK] fromMe=${key?.fromMe} rawPhone=${rawPhone} isSelfChat=${isSelfChat} instance=${instanceName}`,
-  );
+  console.log(`[WEBHOOK] fromMe=${key?.fromMe} rawPhone=${rawPhone} isSelfChat=${isSelfChat} instance=${instanceName}`);
 
   if (isSelfChat) {
     console.log(`[WEBHOOK] Felipe → PAZ: type=${type} content="${content?.slice(0, 60)}"`);
-
     let mensagemFinal = content;
-
     if (type === "audio" && attachment?.url) {
       const openaiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
       if (openaiKey) {
-        await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "🎙️ _Transcrevendo áudio..._").catch(
-          () => {},
-        );
+        await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "🎙️ _Transcrevendo áudio..._").catch(() => {});
         const transcricao = await transcreverAudio(attachment.url as string, openaiKey);
         if (transcricao) {
           mensagemFinal = transcricao;
-          console.log(`[WEBHOOK] Áudio transcrito: "${transcricao.slice(0, 100)}"`);
         } else {
-          await enviarWhatsApp(
-            evolutionConfig,
-            FELIPE_PHONE,
-            "⚠️ Não consegui transcrever o áudio. Tenta mandar como texto?",
-          ).catch(() => {});
+          await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ Não consegui transcrever o áudio. Tenta mandar como texto?").catch(() => {});
           return new Response("OK", { status: 200 });
         }
       }
     }
-
-    if (mensagemFinal) {
-      paz({ sb: supabase, mensagem: mensagemFinal, evolutionConfig, ownerId }).catch((err) =>
-        console.error("[WEBHOOK] Erro PAZ:", err),
-      );
-    }
-
+    if (mensagemFinal) paz({ sb: supabase, mensagem: mensagemFinal, evolutionConfig, ownerId }).catch((err) => console.error("[WEBHOOK] Erro PAZ:", err));
     return new Response("OK", { status: 200 });
   }
 
-  // ─── Mensagem saindo de Felipe para um cliente (captura para histórico) ──────
   if (key?.fromMe === true) {
     const phoneVariants = normalizePhone(rawPhone);
-    const { data: clienteOut } = await supabase
-      .from("clients")
-      .select("id")
-      .eq("owner_id", ownerId)
-      .is("deleted_at", null)
-      .not("tags", "cs", '{"_paz_system_"}')
-      .or(phoneVariants.flatMap((p) => [`telefone.eq.${p}`, `whatsapp.eq.${p}`]).join(","))
-      .maybeSingle();
-
+    const { data: clienteOut } = await supabase.from("clients").select("id").eq("owner_id", ownerId).is("deleted_at", null).not("tags", "cs", '{"_paz_system_"}').or(phoneVariants.flatMap((p) => [`telefone.eq.${p}`, `whatsapp.eq.${p}`]).join(",")).maybeSingle();
     if (clienteOut && content) {
-      const { data: convOut } = await supabase
-        .from("conversations")
-        .select("id")
-        .eq("client_id", clienteOut.id)
-        .eq("channel", "whatsapp")
-        .eq("status", "open")
-        .maybeSingle();
+      const { data: convOut } = await supabase.from("conversations").select("id").eq("client_id", clienteOut.id).eq("channel", "whatsapp").eq("status", "open").maybeSingle();
       if (convOut) {
-        const sentAt = messageTimestamp
-          ? new Date(messageTimestamp * 1000).toISOString()
-          : new Date().toISOString();
-        await supabase
-          .from("messages")
-          .insert({
-            conversation_id: convOut.id,
-            direction: "outgoing",
-            sender: "Felipe Paz",
-            type,
-            content,
-            status: "delivered",
-            sent_at: sentAt,
-            metadata: {
-              provider_msg_id: key?.id,
-              remote_jid: remoteJid,
-              source: "whatsapp-direct",
-            },
-          })
-          .catch((err) => console.warn("[WEBHOOK] Erro ao salvar mensagem saída:", err));
+        const sentAt = messageTimestamp ? new Date(messageTimestamp * 1000).toISOString() : new Date().toISOString();
+        await supabase.from("messages").insert({ conversation_id: convOut.id, direction: "outgoing", sender: "Felipe Paz", type, content, status: "delivered", sent_at: sentAt, metadata: { provider_msg_id: key?.id, remote_jid: remoteJid, source: "whatsapp-direct" } }).catch((err) => console.warn("[WEBHOOK] Erro ao salvar mensagem saída:", err));
       }
     }
     return new Response("OK", { status: 200 });
@@ -1435,122 +961,41 @@ Deno.serve(async (req) => {
 
   // ─── Mensagem de cliente (apenas salva — nenhuma notificação automática) ─────
   const phoneVariants = normalizePhone(rawPhone);
-  const { data: clientData } = await supabase
-    .from("clients")
-    .select("id")
-    .eq("owner_id", ownerId)
-    .is("deleted_at", null)
-    .or(phoneVariants.flatMap((p) => [`telefone.eq.${p}`, `whatsapp.eq.${p}`]).join(","))
-    .maybeSingle();
+  const { data: clientData } = await supabase.from("clients").select("id").eq("owner_id", ownerId).is("deleted_at", null).or(phoneVariants.flatMap((p) => [`telefone.eq.${p}`, `whatsapp.eq.${p}`]).join(",")).maybeSingle();
 
   if (!clientData) {
     if (!content) return new Response("OK", { status: 200 });
-
-    const { data: allUnknownConvs } = await supabase
-      .from("conversations")
-      .select("id, metadata")
-      .eq("owner_id", ownerId)
-      .is("client_id", null);
-
-    const existingUnknownConv = (allUnknownConvs ?? []).find(
-      (c) => (c.metadata as Record<string, unknown>)?.remote_jid === remoteJid,
-    );
+    const { data: allUnknownConvs } = await supabase.from("conversations").select("id, metadata").eq("owner_id", ownerId).is("client_id", null);
+    const existingUnknownConv = (allUnknownConvs ?? []).find((c) => (c.metadata as Record<string, unknown>)?.remote_jid === remoteJid);
     let unknownConvId: string | null = null;
-
     if (existingUnknownConv) {
       unknownConvId = existingUnknownConv.id;
     } else {
-      const { data: newUnknownConv } = await supabase
-        .from("conversations")
-        .insert({
-          owner_id: ownerId,
-          client_id: null,
-          channel: "whatsapp",
-          status: "open",
-          metadata: { remote_jid: remoteJid, push_name: pushName, unknown_contact: true },
-        })
-        .select("id")
-        .single()
-        .catch(() => ({ data: null, error: null }));
+      const { data: newUnknownConv } = await supabase.from("conversations").insert({ owner_id: ownerId, client_id: null, channel: "whatsapp", status: "open", metadata: { remote_jid: remoteJid, push_name: pushName, unknown_contact: true } }).select("id").single().catch(() => ({ data: null, error: null }));
       unknownConvId = (newUnknownConv as { id: string } | null)?.id ?? null;
     }
-
     if (unknownConvId) {
-      const sentAt = messageTimestamp
-        ? new Date(messageTimestamp * 1000).toISOString()
-        : new Date().toISOString();
-      await supabase
-        .from("messages")
-        .insert({
-          conversation_id: unknownConvId,
-          direction: "incoming",
-          sender: pushName,
-          type,
-          content,
-          attachment,
-          status: "delivered",
-          sent_at: sentAt,
-          metadata: { provider_msg_id: key?.id, remote_jid: remoteJid },
-        })
-        .catch((err) => console.warn("[WEBHOOK] Erro ao salvar msg desconhecido:", err));
+      const sentAt = messageTimestamp ? new Date(messageTimestamp * 1000).toISOString() : new Date().toISOString();
+      await supabase.from("messages").insert({ conversation_id: unknownConvId, direction: "incoming", sender: pushName, type, content, attachment, status: "delivered", sent_at: sentAt, metadata: { provider_msg_id: key?.id, remote_jid: remoteJid } }).catch((err) => console.warn("[WEBHOOK] Erro ao salvar msg desconhecido:", err));
     }
-
     console.log(`[WEBHOOK] contato desconhecido: ${rawPhone} (${pushName}) — salvo silenciosamente`);
     return new Response("OK", { status: 200 });
   }
 
-  // ─── Cliente cadastrado: salva mensagem, sem notificação ─────────────────────
   const clientId = clientData.id;
-  const { data: existingConv } = await supabase
-    .from("conversations")
-    .select("id")
-    .eq("client_id", clientId)
-    .eq("channel", "whatsapp")
-    .eq("status", "open")
-    .is("deleted_at", null)
-    .maybeSingle();
-
+  const { data: existingConv } = await supabase.from("conversations").select("id").eq("client_id", clientId).eq("channel", "whatsapp").eq("status", "open").is("deleted_at", null).maybeSingle();
   let conversationId: string;
-
   if (existingConv) {
     conversationId = existingConv.id;
   } else {
-    const { data: newConv, error: convErr } = await supabase
-      .from("conversations")
-      .insert({
-        owner_id: ownerId,
-        client_id: clientId,
-        channel: "whatsapp",
-        status: "open",
-        metadata: { remote_jid: remoteJid },
-      })
-      .select("id")
-      .single();
-    if (convErr || !newConv) {
-      console.error("[WEBHOOK] Erro ao criar conversa:", convErr?.message);
-      return new Response("Error creating conversation", { status: 500 });
-    }
+    const { data: newConv, error: convErr } = await supabase.from("conversations").insert({ owner_id: ownerId, client_id: clientId, channel: "whatsapp", status: "open", metadata: { remote_jid: remoteJid } }).select("id").single();
+    if (convErr || !newConv) { console.error("[WEBHOOK] Erro ao criar conversa:", convErr?.message); return new Response("Error creating conversation", { status: 500 }); }
     conversationId = newConv.id;
   }
 
-  const sentAt = messageTimestamp
-    ? new Date(messageTimestamp * 1000).toISOString()
-    : new Date().toISOString();
-  const { error: msgErr } = await supabase.from("messages").insert({
-    conversation_id: conversationId,
-    direction: "incoming",
-    sender: pushName,
-    type,
-    content,
-    attachment,
-    status: "delivered",
-    sent_at: sentAt,
-    metadata: { provider_msg_id: key?.id, remote_jid: remoteJid },
-  });
-  if (msgErr) {
-    console.error("[WEBHOOK] Erro ao salvar mensagem:", msgErr.message);
-    return new Response("Error saving message", { status: 500 });
-  }
+  const sentAt = messageTimestamp ? new Date(messageTimestamp * 1000).toISOString() : new Date().toISOString();
+  const { error: msgErr } = await supabase.from("messages").insert({ conversation_id: conversationId, direction: "incoming", sender: pushName, type, content, attachment, status: "delivered", sent_at: sentAt, metadata: { provider_msg_id: key?.id, remote_jid: remoteJid } });
+  if (msgErr) { console.error("[WEBHOOK] Erro ao salvar mensagem:", msgErr.message); return new Response("Error saving message", { status: 500 }); }
 
   console.log(`[WEBHOOK] mensagem de ${pushName} salva — aguarda comando do Felipe`);
   return new Response("OK", { status: 200 });
