@@ -46,7 +46,6 @@ interface PendingRecord {
 
 interface AcaoIA {
   tipo:
-    | "ENVIAR_CLIENTE"
     | "MOVER_CRM"
     | "IGNORAR"
     | "CONVERSAR"
@@ -730,67 +729,6 @@ async function executarAcao(params: {
     return "⚠️ Nenhum cliente identificado para mover.";
   }
 
-  // ── ENVIAR_CLIENTE ───────────────────────────────────────────────────────────
-  if (acao.tipo === "ENVIAR_CLIENTE") {
-    const texto = acao.texto || pending?.suggested_text;
-    if (!texto) return "⚠️ Nenhum texto para enviar.";
-
-    if (pending) {
-      await enviarWhatsApp(evolutionConfig, pending.client_phone, texto);
-      await sb.from("messages").insert({
-        conversation_id: pending.conversation_id,
-        direction: "outgoing",
-        sender: "Felipe Paz",
-        type: "text",
-        content: texto,
-        status: "delivered",
-        sent_at: new Date().toISOString(),
-        metadata: { source: "paz-approved", client_id: pending.client_id },
-      });
-      await sb
-        .from("ai_pending_responses")
-        .update({ status: "sent", sent_at: new Date().toISOString() })
-        .eq("id", pending.id);
-      if (ownerId)
-        await registrarTimelineEdge(sb, ownerId, pending.client_id, "comunicacao",
-          "whatsapp_enviado", "Mensagem enviada via PAZ", texto.slice(0, 200));
-      return `✅ Enviado para *${pending.client_name}*`;
-    }
-
-    if (acao.client_name) {
-      const cliente = await resolverCliente();
-      if (cliente) {
-        const phone = (cliente.whatsapp || cliente.telefone || "").replace(/\D/g, "");
-        if (!phone) return `⚠️ *${cliente.nome}* não tem número cadastrado.`;
-        await enviarWhatsApp(evolutionConfig, phone, texto);
-        const { data: conv } = await sb
-          .from("conversations")
-          .select("id")
-          .eq("client_id", cliente.id)
-          .eq("status", "open")
-          .maybeSingle();
-        if (conv) {
-          await sb.from("messages").insert({
-            conversation_id: conv.id,
-            direction: "outgoing",
-            sender: "Felipe Paz",
-            type: "text",
-            content: texto,
-            status: "delivered",
-            sent_at: new Date().toISOString(),
-            metadata: { source: "paz-approved", client_id: cliente.id },
-          });
-        }
-        if (ownerId)
-          await registrarTimelineEdge(sb, ownerId, cliente.id, "comunicacao",
-            "whatsapp_enviado", "Mensagem enviada via PAZ", texto.slice(0, 200));
-        return `✅ Enviado para *${cliente.nome}*`;
-      }
-      return `⚠️ Cliente "${acao.client_name}" não encontrado.`;
-    }
-    return "⚠️ Nenhum cliente pendente para enviar mensagem.";
-  }
-
   // ── IGNORAR ──────────────────────────────────────────────────────────────────
   if (acao.tipo === "IGNORAR" && pending) {
     await sb.from("ai_pending_responses").update({ status: "skipped" }).eq("id", pending.id);
@@ -1362,7 +1300,6 @@ async function paz(params: {
       `ADICIONAR_NOTA: observação sobre cliente. Campos: client_name, nota\n` +
       `AGENDAR_FOLLOWUP: próximo contato agendado. Campos: client_name, due_at, activity_title\n` +
       `ATUALIZAR_CLIENTE: atualizar dados do cliente. Campos: client_name, client_phone, client_email, temperatura (frio|morno|quente)\n` +
-      `ENVIAR_CLIENTE: enviar mensagem WhatsApp para cliente. Campos: client_name, texto\n` +
       `CONVERSAR: apenas conversa, sem ação no CRM. Campos: nenhum extra\n\n` +
       `## EXEMPLOS\n` +
       `"Fechei a venda com o João Alves por R$ 45 mil hoje" →\n` +
