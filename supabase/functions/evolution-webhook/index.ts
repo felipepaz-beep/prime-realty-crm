@@ -8,6 +8,8 @@ const supabase = createClient(
 
 const FELIPE_PHONE = Deno.env.get("OWNER_PHONE") || "5551997775943";
 
+//
+
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 type MessageType =
