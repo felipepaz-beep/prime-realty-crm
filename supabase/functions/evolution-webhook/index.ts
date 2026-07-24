@@ -1,3 +1,4 @@
+// PAZ v3 — executa sem confirmação, aceita mude/transfira
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -45,31 +46,24 @@ interface AcaoIA {
     | "ADICIONAR_NOTA"
     | "AGENDAR_FOLLOWUP"
     | "ATUALIZAR_CLIENTE";
-  // Identificação do cliente
   client_name?: string;
   client_phone?: string;
   client_email?: string;
-  // Ação de pipeline
   etapa?: string;
-  // Texto / motivo
   texto?: string;
   motivo?: string;
-  // Atividade / Tarefa
-  activity_type?: string; // CALL | MEETING | VISIT | EMAIL | FOLLOWUP | TASK
+  activity_type?: string;
   activity_title?: string;
   activity_description?: string;
   activity_outcome?: string;
-  scheduled_at?: string; // ISO 8601
-  completed_at?: string; // ISO 8601
-  due_at?: string; // ISO 8601
-  priority?: string; // LOW | MEDIUM | HIGH | URGENT
+  scheduled_at?: string;
+  completed_at?: string;
+  due_at?: string;
+  priority?: string;
   location?: string;
-  // Venda
   deal_value?: number;
-  // Nota
   nota?: string;
-  // Temperatura do cliente
-  temperatura?: string; // frio | morno | quente
+  temperatura?: string;
   task_title?: string;
 }
 
@@ -182,11 +176,7 @@ async function transcreverAudio(audioUrl: string, openaiKey: string): Promise<st
     const audioBytes = await audioRes.arrayBuffer();
 
     const form = new FormData();
-    form.append(
-      "file",
-      new Blob([audioBytes], { type: "audio/ogg" }),
-      "audio.ogg",
-    );
+    form.append("file", new Blob([audioBytes], { type: "audio/ogg" }), "audio.ogg");
     form.append("model", "whisper-1");
     form.append("language", "pt");
 
@@ -292,9 +282,7 @@ async function registrarTimelineEdge(
       metadata: metadata ?? {},
       created_by: ownerId,
     })
-    .catch((err) =>
-      console.warn("[TIMELINE] Erro ao registrar:", err?.message ?? err),
-    );
+    .catch((err) => console.warn("[TIMELINE] Erro ao registrar:", err?.message ?? err));
 }
 
 // ─── Histórico de conversa com cliente ───────────────────────────────────────
@@ -510,16 +498,19 @@ function parsearRespostaIA(resposta: string): { texto: string; acoes: AcaoIA[] }
         acoes: ((json.acoes as AcaoIA[]) ?? []).filter(Boolean),
       };
     }
-  } catch { /* não é JSON */ }
+  } catch {
+    /* não é JSON */
+  }
 
-  // Fallback: <ACAO>JSON</ACAO>
   const matches = [...resposta.matchAll(/<ACAO>([\s\S]*?)<\/ACAO>/g)];
   const textoLimpo = resposta.replace(/<ACAO>[\s\S]*?<\/ACAO>/g, "").trim();
   const acoes: AcaoIA[] = [];
   for (const match of matches) {
     try {
       acoes.push(JSON.parse(match[1].trim()) as AcaoIA);
-    } catch { /* ignora */ }
+    } catch {
+      /* ignora */
+    }
   }
   return { texto: textoLimpo, acoes };
 }
@@ -543,7 +534,7 @@ async function executarAcao(params: {
   evolutionConfig: EvolutionConfig;
   acao: AcaoIA;
 }): Promise<string> {
-  const { sb, ownerId, evolutionConfig: _ev, acao } = params;
+  const { sb, ownerId, acao } = params;
 
   const resolverCliente = async () => {
     if (!acao.client_name) return null;
@@ -554,7 +545,6 @@ async function executarAcao(params: {
   if (acao.tipo === "MOVER_CRM") {
     const etapa = normalizarEtapa(acao.etapa ?? "");
     if (!etapa) return "⚠️ Etapa não reconhecida.";
-
     if (!acao.client_name) return "⚠️ Me diz o nome do cliente para mover.";
 
     const cliente = await resolverCliente();
@@ -581,9 +571,8 @@ async function executarAcao(params: {
     if (!nome) return "⚠️ Me diz o nome do lead pra adicionar.";
 
     const jaExiste = await buscarClientePorNome(sb, ownerId, nome);
-    if (jaExiste) {
+    if (jaExiste)
       return `⚠️ *${jaExiste.nome}* já está no CRM (${CRM_LABELS[jaExiste.etapa_funil ?? ""] ?? "Lead"}).`;
-    }
 
     const contato = await buscarContatoNasConversas(sb, ownerId, nome);
     const phone = acao.client_phone?.replace(/\D/g, "") || contato?.phone || null;
@@ -601,9 +590,8 @@ async function executarAcao(params: {
       .select("id")
       .single();
 
-    if (createErr || !novoCliente) {
+    if (createErr || !novoCliente)
       return `⚠️ Erro ao criar lead: ${createErr?.message ?? "desconhecido"}`;
-    }
 
     if (contato) {
       await sb
@@ -721,10 +709,16 @@ async function executarAcao(params: {
     if (taskErr || !task) return `⚠️ Erro ao criar tarefa: ${taskErr?.message ?? "?"}`;
 
     if (ownerId && clienteId)
-      await registrarTimelineEdge(sb, ownerId, clienteId, "tarefa", "tarefa_criada", titulo, undefined, {
-        activity_id: task.id,
-        due_at: dueAt,
-      });
+      await registrarTimelineEdge(
+        sb,
+        ownerId,
+        clienteId,
+        "tarefa",
+        "tarefa_criada",
+        titulo,
+        undefined,
+        { activity_id: task.id, due_at: dueAt },
+      );
 
     const dueStr = dueAt
       ? `\n📅 ${new Date(dueAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}`
@@ -806,7 +800,6 @@ async function executarAcao(params: {
   if (acao.tipo === "ADICIONAR_NOTA") {
     const nota = acao.nota ?? acao.activity_description ?? acao.texto;
     if (!nota) return "⚠️ Qual a nota?";
-
     if (!acao.client_name) return "⚠️ Diz o nome do cliente para salvar a nota.";
 
     const cliente = await resolverCliente();
@@ -892,8 +885,7 @@ async function executarAcao(params: {
     if (!cliente) return `⚠️ Cliente "${nome}" não encontrado.`;
 
     const updates: Record<string, unknown> = {};
-    if (acao.client_phone)
-      updates.telefone = updates.whatsapp = acao.client_phone.replace(/\D/g, "");
+    if (acao.client_phone) updates.telefone = updates.whatsapp = acao.client_phone.replace(/\D/g, "");
     if (acao.client_email) updates.email = acao.client_email;
     if (acao.temperatura) updates.temperatura = acao.temperatura;
 
@@ -929,7 +921,6 @@ async function executarComandoDireto(params: {
   const { sb, ownerId, evolutionConfig, mensagem } = params;
   const msg = mensagem.trim();
 
-  // "adicione/adiciona [nome]"
   const mCriar = msg.match(
     /^(?:paz\s+)?(?:adicione?|adiciona(?:r)?|cadastra(?:r)?)\s+(.+?)(?:\s+(?:no|ao)\s+(?:crm|sistema))?$/i,
   );
@@ -944,7 +935,6 @@ async function executarComandoDireto(params: {
       });
   }
 
-  // "move/mova [nome] para/pra [etapa]"
   const mMover = msg.match(
     /^(?:paz\s+)?(?:mov[ae](?:r)?|mud[ae]|transfer[ei](?:r[ae]?)?|coloca?(?:r)?)\s+(?:o\s+|a\s+)?(.+?)\s+(?:para?|pra|em|no\s+estágio|na\s+etapa)\s+(.+?)$/i,
   );
@@ -958,7 +948,6 @@ async function executarComandoDireto(params: {
     });
   }
 
-  // "fechei/venda [nome] [R$VALOR]"
   const mVenda = msg.match(
     /^(?:paz\s+)?(?:fechei|vend(?:a|i|eu)|vendido|ganho|contrato\s+assinado)\b.*?(?:com\s+)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-Za-zÀ-Ü][a-zà-ü]+)*)/i,
   );
@@ -968,17 +957,15 @@ async function executarComandoDireto(params: {
     const valor = valorMatch
       ? parseFloat(valorMatch[1].replace(/\./g, "").replace(",", "."))
       : undefined;
-    if (nomeMatch) {
+    if (nomeMatch)
       return executarAcao({
         sb,
         ownerId,
         evolutionConfig,
         acao: { tipo: "REGISTRAR_VENDA", client_name: nomeMatch, deal_value: valor },
       });
-    }
   }
 
-  // "perdeu/perdi [nome]"
   const mPerda = msg.match(
     /^(?:paz\s+)?(?:perdeu|perdi|não\s+fechou|negócio\s+perdido)\b.*?(?:com\s+(?:o\s+|a\s+)?)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-Za-zÀ-Ü][a-zà-ü]+)*)/i,
   );
@@ -999,7 +986,6 @@ async function executarComandoDireto(params: {
     }
   }
 
-  // "quais os clientes / lista clientes"
   if (
     /(?:quais|list[ae]|me\s+(?:diz|fala|mostra))\s+(?:os\s+|meus\s+)?clientes|clientes\s+(?:que\s+tenho\s+)?(?:no|do)\s+crm|meus\s+clientes/i.test(
       msg,
@@ -1042,7 +1028,6 @@ async function paz(params: {
   }
 
   try {
-    // Memória da conversa Felipe ↔ PAZ
     let pazConversationId: string | null = null;
     let historicoFelipePaz: Array<{ role: "user" | "assistant"; content: string }> = [];
     if (ownerId) {
@@ -1203,8 +1188,8 @@ async function paz(params: {
       `5. Telefones: apenas dígitos com DDD (sem +55 ou espaços)\n` +
       `6. Se Felipe apenas conversa (perguntas, estratégias), use tipo CONVERSAR com acoes=[]\n` +
       `7. Retorne APENAS o JSON — sem texto fora do JSON\n` +
-      `8. EXECUTE IMEDIATAMENTE — NUNCA peça confirmação. Nunca diga "Você confirma?", "Posso prosseguir?", "Tem certeza?". Execute a ação e confirme o resultado.\n` +
-      `9. Se Felipe der um comando de ação (mover, criar, registrar), execute e depois pergunte se quer adicionar mais alguma coisa — nunca antes.\n` +
+      `8. EXECUTE IMEDIATAMENTE — NUNCA peça confirmação antes de agir. Nunca diga "Você confirma?", "Posso prosseguir?", "Tem certeza?", "Preciso da sua aprovação explícita". Execute e confirme o resultado na resposta.\n` +
+      `9. Se faltar algum dado, salve o básico e pergunte o restante DEPOIS de executar — nunca antes.\n` +
       contextoCrm +
       contextoDesconhecidos +
       historicoCliente;
@@ -1241,7 +1226,6 @@ async function paz(params: {
 
       const { texto, acoes } = parsearRespostaIA(respostaCompleta);
 
-      // Salva troca na memória
       if (pazConversationId) {
         const now = new Date().toISOString();
         await sb
@@ -1275,19 +1259,11 @@ async function paz(params: {
         await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, texto);
       }
 
-      // Executa todas as ações retornadas pela IA
       for (const acao of acoes) {
         if (acao.tipo === "CONVERSAR") continue;
         try {
-          const resultado = await executarAcao({
-            sb,
-            ownerId,
-            evolutionConfig,
-            acao,
-          });
-          if (resultado) {
-            await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, resultado);
-          }
+          const resultado = await executarAcao({ sb, ownerId, evolutionConfig, acao });
+          if (resultado) await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, resultado);
         } catch (errAcao) {
           console.error(`[PAZ] erro ao executar ação ${acao.tipo}:`, errAcao);
         }
@@ -1351,9 +1327,8 @@ Deno.serve(async (req) => {
   if (!integration) return new Response("No integration", { status: 200 });
 
   const config = integration.configuration as Record<string, unknown>;
-  if (config?.instance_name && config.instance_name !== instanceName) {
+  if (config?.instance_name && config.instance_name !== instanceName)
     return new Response("Instance mismatch", { status: 200 });
-  }
 
   let ownerId = integration.owner_id as string | null;
   if (!ownerId) {
@@ -1370,8 +1345,6 @@ Deno.serve(async (req) => {
   };
 
   // ─── Detecta mensagem de Felipe para PAZ ─────────────────────────────────────
-  // fromMe=true  → auto-conversa (Evolution no número pessoal do Felipe)
-  // fromMe=false → Felipe fala com PAZ como contato separado (número dedicado)
   const felipeVariants = normalizePhone(FELIPE_PHONE).map((v) => v.replace(/\D/g, ""));
   const isSelfChat = felipeVariants.includes(rawPhone.replace(/\D/g, ""));
 
@@ -1387,11 +1360,9 @@ Deno.serve(async (req) => {
     if (type === "audio" && attachment?.url) {
       const openaiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
       if (openaiKey) {
-        await enviarWhatsApp(
-          evolutionConfig,
-          FELIPE_PHONE,
-          "🎙️ _Transcrevendo áudio..._",
-        ).catch(() => {});
+        await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "🎙️ _Transcrevendo áudio..._").catch(
+          () => {},
+        );
         const transcricao = await transcreverAudio(attachment.url as string, openaiKey);
         if (transcricao) {
           mensagemFinal = transcricao;
@@ -1412,6 +1383,7 @@ Deno.serve(async (req) => {
         console.error("[WEBHOOK] Erro PAZ:", err),
       );
     }
+
     return new Response("OK", { status: 200 });
   }
 
@@ -1435,7 +1407,6 @@ Deno.serve(async (req) => {
         .eq("channel", "whatsapp")
         .eq("status", "open")
         .maybeSingle();
-
       if (convOut) {
         const sentAt = messageTimestamp
           ? new Date(messageTimestamp * 1000).toISOString()
@@ -1456,9 +1427,7 @@ Deno.serve(async (req) => {
               source: "whatsapp-direct",
             },
           })
-          .catch((err) =>
-            console.warn("[WEBHOOK] Erro ao salvar mensagem saída:", err),
-          );
+          .catch((err) => console.warn("[WEBHOOK] Erro ao salvar mensagem saída:", err));
       }
     }
     return new Response("OK", { status: 200 });
@@ -1466,7 +1435,6 @@ Deno.serve(async (req) => {
 
   // ─── Mensagem de cliente (apenas salva — nenhuma notificação automática) ─────
   const phoneVariants = normalizePhone(rawPhone);
-
   const { data: clientData } = await supabase
     .from("clients")
     .select("id")
@@ -1476,7 +1444,6 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   if (!clientData) {
-    // Contato desconhecido: salva conversa para histórico, sem notificar Felipe
     if (!content) return new Response("OK", { status: 200 });
 
     const { data: allUnknownConvs } = await supabase
@@ -1488,7 +1455,6 @@ Deno.serve(async (req) => {
     const existingUnknownConv = (allUnknownConvs ?? []).find(
       (c) => (c.metadata as Record<string, unknown>)?.remote_jid === remoteJid,
     );
-
     let unknownConvId: string | null = null;
 
     if (existingUnknownConv) {
@@ -1535,7 +1501,6 @@ Deno.serve(async (req) => {
 
   // ─── Cliente cadastrado: salva mensagem, sem notificação ─────────────────────
   const clientId = clientData.id;
-
   const { data: existingConv } = await supabase
     .from("conversations")
     .select("id")
@@ -1566,13 +1531,11 @@ Deno.serve(async (req) => {
       return new Response("Error creating conversation", { status: 500 });
     }
     conversationId = newConv.id;
-    console.log(`[WEBHOOK] nova conversa: ${conversationId}`);
   }
 
   const sentAt = messageTimestamp
     ? new Date(messageTimestamp * 1000).toISOString()
     : new Date().toISOString();
-
   const { error: msgErr } = await supabase.from("messages").insert({
     conversation_id: conversationId,
     direction: "incoming",
