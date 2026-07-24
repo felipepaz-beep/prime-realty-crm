@@ -1100,10 +1100,13 @@ Deno.serve(async (req) => {
     instance: (config?.instance_name as string) ?? "prime-crm",
   };
 
-  // ─── Self-chat: Felipe conversando com PAZ ────────────────────────────────────
+  // ─── Detecta mensagem de Felipe para PAZ ─────────────────────────────────────
+  // fromMe=true  → auto-conversa (Evolution no número pessoal do Felipe)
+  // fromMe=false → Felipe fala com PAZ como contato separado (número dedicado)
   const felipeVariants = normalizePhone(FELIPE_PHONE).map((v) => v.replace(/\D/g, ""));
-  const isSelfChat =
-    key?.fromMe === true && felipeVariants.includes(rawPhone.replace(/\D/g, ""));
+  const isSelfChat = felipeVariants.includes(rawPhone.replace(/\D/g, ""));
+
+  console.log(`[WEBHOOK] fromMe=${key?.fromMe} rawPhone=${rawPhone} isSelfChat=${isSelfChat} instance=${instanceName}`);
 
   if (isSelfChat) {
     console.log(`[WEBHOOK] Felipe → PAZ: "${content}"`);
