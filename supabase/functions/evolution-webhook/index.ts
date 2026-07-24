@@ -1,4 +1,4 @@
-// PAZ v2 — sem notificações automáticas
+// PAZ v3 — executa sem confirmação, aceita mude/transfira
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
