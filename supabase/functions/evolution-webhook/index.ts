@@ -946,7 +946,7 @@ async function executarComandoDireto(params: {
 
   // "move/mova [nome] para/pra [etapa]"
   const mMover = msg.match(
-    /^(?:paz\s+)?(?:mov[ae](?:r)?|muda)\s+(?:o\s+|a\s+)?(.+?)\s+(?:para?|pra)\s+(.+?)$/i,
+    /^(?:paz\s+)?(?:mov[ae](?:r)?|mud[ae]|transfer[ei](?:r[ae]?)?|coloca?(?:r)?)\s+(?:o\s+|a\s+)?(.+?)\s+(?:para?|pra|em|no\s+estágio|na\s+etapa)\s+(.+?)$/i,
   );
   if (mMover) {
     const [, nomeCliente, etapaRaw] = mMover;
@@ -1203,6 +1203,8 @@ async function paz(params: {
       `5. Telefones: apenas dígitos com DDD (sem +55 ou espaços)\n` +
       `6. Se Felipe apenas conversa (perguntas, estratégias), use tipo CONVERSAR com acoes=[]\n` +
       `7. Retorne APENAS o JSON — sem texto fora do JSON\n` +
+      `8. EXECUTE IMEDIATAMENTE — NUNCA peça confirmação. Nunca diga "Você confirma?", "Posso prosseguir?", "Tem certeza?". Execute a ação e confirme o resultado.\n` +
+      `9. Se Felipe der um comando de ação (mover, criar, registrar), execute e depois pergunte se quer adicionar mais alguma coisa — nunca antes.\n` +
       contextoCrm +
       contextoDesconhecidos +
       historicoCliente;
