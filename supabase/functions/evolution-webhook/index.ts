@@ -748,6 +748,11 @@ async function paz(params: {
 }): Promise<void> {
   const { sb, mensagem, evolutionConfig, ownerId } = params;
 
+  if (/^paz\s+ping$/i.test(mensagem.trim())) {
+    await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "🤖 PAZ ativa e respondendo!").catch(() => {});
+    return;
+  }
+
   const openaiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
   if (!openaiKey) {
     await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ OpenAI não configurada.").catch(() => {});
@@ -874,8 +879,9 @@ async function paz(params: {
         } catch (errAcao) { console.error(`[PAZ] erro ao executar ação ${acao.tipo}:`, errAcao); }
       }
     } catch (err) {
-      console.error("[PAZ] erro →", err instanceof Error ? err.message : String(err));
-      await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ PAZ com erro. Tente novamente.").catch(() => {});
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error("[PAZ] erro →", errMsg);
+      await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, `⚠️ PAZ erro: ${errMsg.slice(0, 120)}`).catch(() => {});
     }
   } catch (errFatal) {
     console.error("[PAZ] erro fatal →", errFatal instanceof Error ? errFatal.message : String(errFatal));
