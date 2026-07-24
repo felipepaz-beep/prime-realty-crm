@@ -33,21 +33,9 @@ interface EvolutionConfig {
   instance: string;
 }
 
-interface PendingRecord {
-  id: string;
-  client_id: string;
-  client_phone: string;
-  client_name: string;
-  client_message: string;
-  suggested_text: string;
-  conversation_id: string;
-  created_at: string;
-}
-
 interface AcaoIA {
   tipo:
     | "MOVER_CRM"
-    | "IGNORAR"
     | "CONVERSAR"
     | "CRIAR_LEAD"
     | "REGISTRAR_ATIVIDADE"
@@ -61,10 +49,9 @@ interface AcaoIA {
   client_name?: string;
   client_phone?: string;
   client_email?: string;
-  client_company?: string;
   // Ação de pipeline
   etapa?: string;
-  // Envio de mensagem
+  // Texto / motivo
   texto?: string;
   motivo?: string;
   // Atividade / Tarefa
@@ -73,16 +60,17 @@ interface AcaoIA {
   activity_description?: string;
   activity_outcome?: string;
   scheduled_at?: string; // ISO 8601
-  completed_at?: string; // ISO 8601 (se já realizada)
-  due_at?: string; // ISO 8601 (prazo da tarefa)
+  completed_at?: string; // ISO 8601
+  due_at?: string; // ISO 8601
   priority?: string; // LOW | MEDIUM | HIGH | URGENT
   location?: string;
-  // Venda / Negócio
+  // Venda
   deal_value?: number;
   // Nota
   nota?: string;
-  // Temperatura / prioridade do cliente
+  // Temperatura do cliente
   temperatura?: string; // frio | morno | quente
+  task_title?: string;
 }
 
 // ─── Extração de mensagem ─────────────────────────────────────────────────────
@@ -280,7 +268,7 @@ const ACTIVITY_TYPE_LABELS: Record<string, string> = {
   TASK: "Tarefa",
 };
 
-// ─── Registro de evento na timeline (usado pela Edge Function) ─────────────────
+// ─── Registro de evento na timeline ──────────────────────────────────────────
 
 async function registrarTimelineEdge(
   sb: SupabaseClient,
@@ -309,7 +297,7 @@ async function registrarTimelineEdge(
     );
 }
 
-// ─── Busca histórico da conversa com o cliente ────────────────────────────────
+// ─── Histórico de conversa com cliente ───────────────────────────────────────
 
 async function buscarHistoricoConversa(
   sb: SupabaseClient,
@@ -329,7 +317,7 @@ async function buscarHistoricoConversa(
     .join("\n");
 }
 
-// ─── Conversa PAZ: histórico Felipe ↔ PAZ (memória entre mensagens) ──────────
+// ─── Conversa PAZ: memória Felipe ↔ PAZ ──────────────────────────────────────
 
 async function buscarOuCriarConversaPaz(
   sb: SupabaseClient,
@@ -450,7 +438,7 @@ async function buscarClientesAtivos(
   }>;
 }
 
-// ─── Busca cliente pelo nome no CRM ──────────────────────────────────────────
+// ─── Busca cliente pelo nome ──────────────────────────────────────────────────
 
 async function buscarClientePorNome(
   sb: SupabaseClient,
@@ -470,7 +458,9 @@ async function buscarClientePorNome(
   if (!ownerId || !nome) return null;
   const { data } = await sb
     .from("clients")
-    .select("id, nome, whatsapp, telefone, email, etapa_funil, status, valor_negociado, proximo_followup")
+    .select(
+      "id, nome, whatsapp, telefone, email, etapa_funil, status, valor_negociado, proximo_followup",
+    )
     .eq("owner_id", ownerId)
     .is("deleted_at", null)
     .not("tags", "cs", '{"_paz_system_"}')
@@ -480,7 +470,7 @@ async function buscarClientePorNome(
   return data ?? null;
 }
 
-// ─── Busca contato desconhecido salvo nas conversas staging ──────────────────
+// ─── Busca contato desconhecido nas conversas ─────────────────────────────────
 
 async function buscarContatoNasConversas(
   sb: SupabaseClient,
@@ -509,138 +499,9 @@ async function buscarContatoNasConversas(
   return null;
 }
 
-// ─── Gera sugestão de resposta ────────────────────────────────────────────────
-
-async function gerarSugestao(
-  mensagem: string,
-  clienteNome: string,
-  historico: string,
-  isPrimeiroContato: boolean,
-): Promise<string> {
-  const openaiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
-  if (!openaiKey) return "";
-
-  const contexto = isPrimeiroContato
-    ? `É o primeiro contato deste cliente. Sugira uma resposta de primeiro atendimento como corretor Felipe Paz: breve, natural, sem mencionar assistente. Máximo 2 linhas.`
-    : `Sugira uma resposta natural e breve (máximo 2 linhas) como se fosse o corretor Felipe Paz respondendo pelo WhatsApp.`;
-
-  try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        max_tokens: 150,
-        messages: [
-          { role: "system", content: contexto },
-          {
-            role: "user",
-            content: `${historico ? `Histórico:\n${historico}\n\n` : ""}Cliente ${clienteNome}: "${mensagem}"\n\nSugira uma resposta:`,
-          },
-        ],
-      }),
-    });
-    if (!res.ok) return "";
-    const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    return json.choices?.[0]?.message?.content?.trim() ?? "";
-  } catch {
-    return "";
-  }
-}
-
-// ─── Notifica Felipe quando cliente manda mensagem ───────────────────────────
-
-async function processarMensagemIa(params: {
-  sb: SupabaseClient;
-  clienteId: string;
-  conversationId: string;
-  mensagem: string;
-  telefone: string;
-  clienteNome: string;
-  ownerId: string | null;
-  evolutionConfig: EvolutionConfig;
-  isPrimeiroContato: boolean;
-}): Promise<void> {
-  const {
-    sb,
-    clienteId,
-    conversationId,
-    mensagem,
-    telefone,
-    clienteNome,
-    ownerId,
-    evolutionConfig,
-    isPrimeiroContato,
-  } = params;
-
-  try {
-    const historico = isPrimeiroContato
-      ? ""
-      : await buscarHistoricoConversa(sb, conversationId, 8);
-    const sugestao = await gerarSugestao(mensagem, clienteNome, historico, isPrimeiroContato);
-
-    const { data: clienteInfo } = await sb
-      .from("clients")
-      .select("etapa_funil")
-      .eq("id", clienteId)
-      .single();
-    const etapaLabel = CRM_LABELS[clienteInfo?.etapa_funil ?? ""] ?? "Novo Lead";
-
-    const { data: existingPending } = await sb
-      .from("ai_pending_responses")
-      .select("id")
-      .eq("client_id", clienteId)
-      .eq("status", "pending")
-      .limit(1)
-      .maybeSingle();
-
-    if (existingPending) {
-      await sb
-        .from("ai_pending_responses")
-        .update({ client_message: mensagem, suggested_text: sugestao })
-        .eq("id", existingPending.id);
-      console.log(`[PAZ] Pendente atualizado silenciosamente — ${clienteNome}`);
-      return;
-    }
-
-    await sb.from("ai_pending_responses").insert({
-      owner_id: ownerId,
-      conversation_id: conversationId,
-      client_id: clienteId,
-      client_phone: telefone,
-      client_name: clienteNome,
-      client_message: mensagem,
-      suggested_text: sugestao,
-    });
-
-    let notif: string;
-    if (isPrimeiroContato) {
-      const fone = telefone.startsWith("+") ? telefone : `+${telefone}`;
-      notif =
-        `📥 *Novo Lead: ${clienteNome}*\n` +
-        `📱 ${fone}\n\n` +
-        `"${mensagem}"` +
-        (sugestao
-          ? `\n\n💬 *PAZ sugere:*\n"${sugestao}"`
-          : `\n\n💬 _Me fala como quer abordar._`);
-    } else {
-      notif =
-        `📩 *${clienteNome}* _(${etapaLabel})_:\n"${mensagem}"` +
-        (sugestao ? `\n\n💡 *PAZ sugere:*\n"${sugestao}"` : "");
-    }
-
-    await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, notif);
-    console.log(`[PAZ] Felipe notificado — ${clienteNome}`);
-  } catch (err) {
-    console.error("[PAZ] erro notificação →", err instanceof Error ? err.message : String(err));
-  }
-}
-
 // ─── Parse da resposta da IA ──────────────────────────────────────────────────
-// Suporta formato JSON ({ resposta, acoes[] }) e fallback <ACAO> antigo
 
 function parsearRespostaIA(resposta: string): { texto: string; acoes: AcaoIA[] } {
-  // Tenta JSON moderno: { "resposta": "...", "acoes": [...] }
   try {
     const json = JSON.parse(resposta) as Record<string, unknown>;
     if (json.resposta !== undefined || json.acoes !== undefined) {
@@ -649,16 +510,16 @@ function parsearRespostaIA(resposta: string): { texto: string; acoes: AcaoIA[] }
         acoes: ((json.acoes as AcaoIA[]) ?? []).filter(Boolean),
       };
     }
-  } catch { /* não é JSON — tenta formato antigo */ }
+  } catch { /* não é JSON */ }
 
-  // Fallback: <ACAO>JSON</ACAO> (compatibilidade retroativa)
+  // Fallback: <ACAO>JSON</ACAO>
   const matches = [...resposta.matchAll(/<ACAO>([\s\S]*?)<\/ACAO>/g)];
   const textoLimpo = resposta.replace(/<ACAO>[\s\S]*?<\/ACAO>/g, "").trim();
   const acoes: AcaoIA[] = [];
   for (const match of matches) {
     try {
       acoes.push(JSON.parse(match[1].trim()) as AcaoIA);
-    } catch { /* ignora JSON malformado */ }
+    } catch { /* ignora */ }
   }
   return { texto: textoLimpo, acoes };
 }
@@ -674,28 +535,16 @@ function normalizarEtapa(raw: string): string {
   return CRM_ATALHOS[k] ?? k;
 }
 
-// ─── Executa ação ─────────────────────────────────────────────────────────────
+// ─── Executa ação no CRM ─────────────────────────────────────────────────────
 
 async function executarAcao(params: {
   sb: SupabaseClient;
   ownerId: string | null;
   evolutionConfig: EvolutionConfig;
-  allPending: PendingRecord[];
   acao: AcaoIA;
 }): Promise<string> {
-  const { sb, ownerId, evolutionConfig, allPending, acao } = params;
+  const { sb, ownerId, evolutionConfig: _ev, acao } = params;
 
-  // ── Localiza cliente em pending OU diretamente no CRM ────────────────────────
-  let pending: PendingRecord | undefined = undefined;
-  if (acao.client_name) {
-    pending = allPending.find((p) =>
-      p.client_name.toLowerCase().includes(acao.client_name!.toLowerCase().split(" ")[0]),
-    );
-  } else if (allPending.length > 0) {
-    pending = allPending[0];
-  }
-
-  // Resolve cliente do CRM pelo nome (para ações que precisam do cliente existente)
   const resolverCliente = async () => {
     if (!acao.client_name) return null;
     return buscarClientePorNome(sb, ownerId, acao.client_name);
@@ -706,33 +555,24 @@ async function executarAcao(params: {
     const etapa = normalizarEtapa(acao.etapa ?? "");
     if (!etapa) return "⚠️ Etapa não reconhecida.";
 
-    if (pending) {
-      await sb.from("clients").update({ etapa_funil: etapa }).eq("id", pending.client_id);
-      await sb.from("ai_pending_responses").update({ status: "skipped" }).eq("id", pending.id);
-      if (ownerId)
-        await registrarTimelineEdge(sb, ownerId, pending.client_id, "pipeline", "etapa_alterada",
-          `Etapa alterada para ${CRM_LABELS[etapa] ?? etapa}`, undefined, { etapa_nova: etapa });
-      return `✅ *${pending.client_name}* → *${CRM_LABELS[etapa] ?? etapa}*`;
-    }
+    if (!acao.client_name) return "⚠️ Me diz o nome do cliente para mover.";
 
-    if (acao.client_name) {
-      const cliente = await resolverCliente();
-      if (cliente) {
-        await sb.from("clients").update({ etapa_funil: etapa }).eq("id", cliente.id);
-        if (ownerId)
-          await registrarTimelineEdge(sb, ownerId, cliente.id, "pipeline", "etapa_alterada",
-            `Etapa alterada para ${CRM_LABELS[etapa] ?? etapa}`, undefined, { etapa_nova: etapa });
-        return `✅ *${cliente.nome}* → *${CRM_LABELS[etapa] ?? etapa}*`;
-      }
-      return `⚠️ Cliente "${acao.client_name}" não encontrado no CRM.`;
-    }
-    return "⚠️ Nenhum cliente identificado para mover.";
-  }
+    const cliente = await resolverCliente();
+    if (!cliente) return `⚠️ Cliente "${acao.client_name}" não encontrado no CRM.`;
 
-  // ── IGNORAR ──────────────────────────────────────────────────────────────────
-  if (acao.tipo === "IGNORAR" && pending) {
-    await sb.from("ai_pending_responses").update({ status: "skipped" }).eq("id", pending.id);
-    return `⏭️ *${pending.client_name}* ignorado.`;
+    await sb.from("clients").update({ etapa_funil: etapa }).eq("id", cliente.id);
+    if (ownerId)
+      await registrarTimelineEdge(
+        sb,
+        ownerId,
+        cliente.id,
+        "pipeline",
+        "etapa_alterada",
+        `Etapa alterada para ${CRM_LABELS[etapa] ?? etapa}`,
+        undefined,
+        { etapa_nova: etapa },
+      );
+    return `✅ *${cliente.nome}* → *${CRM_LABELS[etapa] ?? etapa}*`;
   }
 
   // ── CRIAR_LEAD ────────────────────────────────────────────────────────────────
@@ -746,8 +586,7 @@ async function executarAcao(params: {
     }
 
     const contato = await buscarContatoNasConversas(sb, ownerId, nome);
-    const phone =
-      acao.client_phone?.replace(/\D/g, "") || contato?.phone || null;
+    const phone = acao.client_phone?.replace(/\D/g, "") || contato?.phone || null;
 
     const { data: novoCliente, error: createErr } = await sb
       .from("clients")
@@ -774,8 +613,14 @@ async function executarAcao(params: {
     }
 
     if (ownerId)
-      await registrarTimelineEdge(sb, ownerId, novoCliente.id, "ciclo_vida",
-        "cliente_criado", `${contato?.nome ?? nome} adicionado ao CRM via PAZ`);
+      await registrarTimelineEdge(
+        sb,
+        ownerId,
+        novoCliente.id,
+        "ciclo_vida",
+        "cliente_criado",
+        `${contato?.nome ?? nome} adicionado ao CRM via PAZ`,
+      );
 
     const phoneStr = phone ? `\n📱 +${phone}` : "\n📌 _Sem número ainda._";
     return `✅ *${contato?.nome ?? nome}* adicionado como Novo Lead!${phoneStr}`;
@@ -815,15 +660,25 @@ async function executarAcao(params: {
     if (actErr || !act) return `⚠️ Erro ao registrar atividade: ${actErr?.message ?? "?"}`;
 
     const timelineEvent =
-      tipo === "CALL" ? "ligacao_realizada"
-      : tipo === "VISIT" ? "visita_realizada"
-      : tipo === "EMAIL" ? "email_enviado"
-      : "followup_realizado";
+      tipo === "CALL"
+        ? "ligacao_realizada"
+        : tipo === "VISIT"
+          ? "visita_realizada"
+          : tipo === "EMAIL"
+            ? "email_enviado"
+            : "followup_realizado";
 
     if (ownerId)
-      await registrarTimelineEdge(sb, ownerId, cliente.id, "comunicacao", timelineEvent,
-        titulo, acao.activity_outcome ?? acao.activity_description ?? undefined,
-        { activity_id: act.id });
+      await registrarTimelineEdge(
+        sb,
+        ownerId,
+        cliente.id,
+        "comunicacao",
+        timelineEvent,
+        titulo,
+        acao.activity_outcome ?? acao.activity_description ?? undefined,
+        { activity_id: act.id },
+      );
 
     const outcomeStr = acao.activity_outcome ? `\n📋 _${acao.activity_outcome}_` : "";
     return `✅ *${ACTIVITY_TYPE_LABELS[tipo] ?? tipo}* com *${cliente.nome}* registrada!${outcomeStr}`;
@@ -832,8 +687,7 @@ async function executarAcao(params: {
   // ── CRIAR_TAREFA ──────────────────────────────────────────────────────────────
   if (acao.tipo === "CRIAR_TAREFA") {
     const tipo = (acao.activity_type ?? "TASK").toUpperCase();
-    const titulo =
-      acao.task_title ?? acao.activity_title ?? `${ACTIVITY_TYPE_LABELS[tipo] ?? tipo}`;
+    const titulo = acao.task_title ?? acao.activity_title ?? `${ACTIVITY_TYPE_LABELS[tipo] ?? tipo}`;
     const dueAt = acao.due_at ?? acao.scheduled_at ?? null;
 
     let clienteId: string | null = null;
@@ -867,8 +721,10 @@ async function executarAcao(params: {
     if (taskErr || !task) return `⚠️ Erro ao criar tarefa: ${taskErr?.message ?? "?"}`;
 
     if (ownerId && clienteId)
-      await registrarTimelineEdge(sb, ownerId, clienteId, "tarefa", "tarefa_criada",
-        titulo, undefined, { activity_id: task.id, due_at: dueAt });
+      await registrarTimelineEdge(sb, ownerId, clienteId, "tarefa", "tarefa_criada", titulo, undefined, {
+        activity_id: task.id,
+        due_at: dueAt,
+      });
 
     const dueStr = dueAt
       ? `\n📅 ${new Date(dueAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}`
@@ -897,10 +753,16 @@ async function executarAcao(params: {
       .eq("id", cliente.id);
 
     if (ownerId)
-      await registrarTimelineEdge(sb, ownerId, cliente.id, "negocio", "venda_concluida",
+      await registrarTimelineEdge(
+        sb,
+        ownerId,
+        cliente.id,
+        "negocio",
+        "venda_concluida",
         `Venda concluída com ${cliente.nome}`,
         valor > 0 ? `Valor: R$ ${valor.toLocaleString("pt-BR")}` : undefined,
-        { valor_negociado: valor });
+        { valor_negociado: valor },
+      );
 
     const valorStr =
       valor > 0 ? `\n💰 R$ ${valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "";
@@ -925,10 +787,16 @@ async function executarAcao(params: {
       .eq("id", cliente.id);
 
     if (ownerId)
-      await registrarTimelineEdge(sb, ownerId, cliente.id, "negocio", "etapa_alterada",
+      await registrarTimelineEdge(
+        sb,
+        ownerId,
+        cliente.id,
+        "negocio",
+        "etapa_alterada",
         `Negócio perdido com ${cliente.nome}`,
         acao.motivo ?? undefined,
-        { etapa_nova: "fechado_perdido", motivo: acao.motivo });
+        { etapa_nova: "fechado_perdido", motivo: acao.motivo },
+      );
 
     const motivoStr = acao.motivo ? `\n_Motivo: ${acao.motivo}_` : "";
     return `📌 *${cliente.nome}* marcado como *Perdido ❌*${motivoStr}`;
@@ -939,31 +807,35 @@ async function executarAcao(params: {
     const nota = acao.nota ?? acao.activity_description ?? acao.texto;
     if (!nota) return "⚠️ Qual a nota?";
 
-    if (acao.client_name) {
-      const cliente = await resolverCliente();
-      if (!cliente) return `⚠️ Cliente "${acao.client_name}" não encontrado.`;
+    if (!acao.client_name) return "⚠️ Diz o nome do cliente para salvar a nota.";
 
-      // Salva como atividade tipo TASK (nota interna)
-      await sb.from("activities").insert({
-        owner_id: ownerId,
-        client_id: cliente.id,
-        type: "TASK",
-        title: "Nota adicionada",
-        description: nota,
-        status: "COMPLETED",
-        priority: "LOW",
-        completed_at: new Date().toISOString(),
-        metadata: { source: "paz", is_note: true },
-      });
+    const cliente = await resolverCliente();
+    if (!cliente) return `⚠️ Cliente "${acao.client_name}" não encontrado.`;
 
-      if (ownerId)
-        await registrarTimelineEdge(sb, ownerId, cliente.id, "documento", "nota_adicionada",
-          "Nota adicionada via PAZ", nota.slice(0, 300));
+    await sb.from("activities").insert({
+      owner_id: ownerId,
+      client_id: cliente.id,
+      type: "TASK",
+      title: "Nota adicionada",
+      description: nota,
+      status: "COMPLETED",
+      priority: "LOW",
+      completed_at: new Date().toISOString(),
+      metadata: { source: "paz", is_note: true },
+    });
 
-      return `📝 Nota salva em *${cliente.nome}*:\n_${nota.slice(0, 150)}${nota.length > 150 ? "..." : ""}_`;
-    }
+    if (ownerId)
+      await registrarTimelineEdge(
+        sb,
+        ownerId,
+        cliente.id,
+        "documento",
+        "nota_adicionada",
+        "Nota adicionada via PAZ",
+        nota.slice(0, 300),
+      );
 
-    return "⚠️ Diz o nome do cliente para salvar a nota.";
+    return `📝 Nota salva em *${cliente.nome}*:\n_${nota.slice(0, 150)}${nota.length > 150 ? "..." : ""}_`;
   }
 
   // ── AGENDAR_FOLLOWUP ──────────────────────────────────────────────────────────
@@ -977,10 +849,7 @@ async function executarAcao(params: {
     const dataFollowup = acao.due_at ?? acao.scheduled_at ?? null;
 
     if (dataFollowup) {
-      await sb
-        .from("clients")
-        .update({ proximo_followup: dataFollowup })
-        .eq("id", cliente.id);
+      await sb.from("clients").update({ proximo_followup: dataFollowup }).eq("id", cliente.id);
     }
 
     await sb.from("activities").insert({
@@ -997,9 +866,16 @@ async function executarAcao(params: {
     });
 
     if (ownerId)
-      await registrarTimelineEdge(sb, ownerId, cliente.id, "comunicacao", "followup_criado",
+      await registrarTimelineEdge(
+        sb,
+        ownerId,
+        cliente.id,
+        "comunicacao",
+        "followup_criado",
         `Follow-up agendado com ${cliente.nome}`,
-        undefined, { due_at: dataFollowup });
+        undefined,
+        { due_at: dataFollowup },
+      );
 
     const dataStr = dataFollowup
       ? ` para *${new Date(dataFollowup).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}*`
@@ -1016,7 +892,8 @@ async function executarAcao(params: {
     if (!cliente) return `⚠️ Cliente "${nome}" não encontrado.`;
 
     const updates: Record<string, unknown> = {};
-    if (acao.client_phone) updates.telefone = updates.whatsapp = acao.client_phone.replace(/\D/g, "");
+    if (acao.client_phone)
+      updates.telefone = updates.whatsapp = acao.client_phone.replace(/\D/g, "");
     if (acao.client_email) updates.email = acao.client_email;
     if (acao.temperatura) updates.temperatura = acao.temperatura;
 
@@ -1024,9 +901,16 @@ async function executarAcao(params: {
 
     await sb.from("clients").update(updates).eq("id", cliente.id);
     if (ownerId)
-      await registrarTimelineEdge(sb, ownerId, cliente.id, "ciclo_vida", "cliente_atualizado",
-        `Dados de ${cliente.nome} atualizados via PAZ`, undefined,
-        { campos: Object.keys(updates) });
+      await registrarTimelineEdge(
+        sb,
+        ownerId,
+        cliente.id,
+        "ciclo_vida",
+        "cliente_atualizado",
+        `Dados de ${cliente.nome} atualizados via PAZ`,
+        undefined,
+        { campos: Object.keys(updates) },
+      );
 
     return `✅ *${cliente.nome}* atualizado: ${Object.keys(updates).join(", ")}`;
   }
@@ -1034,16 +918,15 @@ async function executarAcao(params: {
   return "";
 }
 
-// ─── Detecção direta de comandos (bypass da IA para comandos simples) ─────────
+// ─── Comandos diretos (sem IA) ────────────────────────────────────────────────
 
 async function executarComandoDireto(params: {
   sb: SupabaseClient;
   ownerId: string | null;
   evolutionConfig: EvolutionConfig;
   mensagem: string;
-  allPending: PendingRecord[];
 }): Promise<string | null> {
-  const { sb, ownerId, evolutionConfig, mensagem, allPending } = params;
+  const { sb, ownerId, evolutionConfig, mensagem } = params;
   const msg = mensagem.trim();
 
   // "adicione/adiciona [nome]"
@@ -1053,7 +936,12 @@ async function executarComandoDireto(params: {
   if (mCriar) {
     const nome = mCriar[1].replace(/\s+(?:no|ao)\s+(?:crm|sistema)\s*$/i, "").trim();
     if (nome)
-      return executarAcao({ sb, ownerId, evolutionConfig, allPending, acao: { tipo: "CRIAR_LEAD", client_name: nome } });
+      return executarAcao({
+        sb,
+        ownerId,
+        evolutionConfig,
+        acao: { tipo: "CRIAR_LEAD", client_name: nome },
+      });
   }
 
   // "move/mova [nome] para/pra [etapa]"
@@ -1062,26 +950,35 @@ async function executarComandoDireto(params: {
   );
   if (mMover) {
     const [, nomeCliente, etapaRaw] = mMover;
-    return executarAcao({ sb, ownerId, evolutionConfig, allPending, acao: { tipo: "MOVER_CRM", client_name: nomeCliente.trim(), etapa: etapaRaw.trim() } });
+    return executarAcao({
+      sb,
+      ownerId,
+      evolutionConfig,
+      acao: { tipo: "MOVER_CRM", client_name: nomeCliente.trim(), etapa: etapaRaw.trim() },
+    });
   }
 
-  // "venda / fechei / vendeu [com] [nome] [R$VALOR]"
+  // "fechei/venda [nome] [R$VALOR]"
   const mVenda = msg.match(
     /^(?:paz\s+)?(?:fechei|vend(?:a|i|eu)|vendido|ganho|contrato\s+assinado)\b.*?(?:com\s+)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-Za-zÀ-Ü][a-zà-ü]+)*)/i,
   );
   if (mVenda) {
     const nomeMatch = mVenda[1]?.trim();
     const valorMatch = msg.match(/r\$?\s*([\d.,]+)/i);
-    const valor = valorMatch ? parseFloat(valorMatch[1].replace(/\./g, "").replace(",", ".")) : undefined;
+    const valor = valorMatch
+      ? parseFloat(valorMatch[1].replace(/\./g, "").replace(",", "."))
+      : undefined;
     if (nomeMatch) {
       return executarAcao({
-        sb, ownerId, evolutionConfig, allPending,
+        sb,
+        ownerId,
+        evolutionConfig,
         acao: { tipo: "REGISTRAR_VENDA", client_name: nomeMatch, deal_value: valor },
       });
     }
   }
 
-  // "perdeu / não fechou / perdido [com/o] [nome]"
+  // "perdeu/perdi [nome]"
   const mPerda = msg.match(
     /^(?:paz\s+)?(?:perdeu|perdi|não\s+fechou|negócio\s+perdido)\b.*?(?:com\s+(?:o\s+|a\s+)?)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-Za-zÀ-Ü][a-zà-ü]+)*)/i,
   );
@@ -1090,15 +987,23 @@ async function executarComandoDireto(params: {
     if (nomeMatch) {
       const motivoMatch = msg.match(/(?:por(?:que)?|motivo)[:\s]+(.+)$/i);
       return executarAcao({
-        sb, ownerId, evolutionConfig, allPending,
-        acao: { tipo: "REGISTRAR_PERDA", client_name: nomeMatch, motivo: motivoMatch?.[1]?.trim() },
+        sb,
+        ownerId,
+        evolutionConfig,
+        acao: {
+          tipo: "REGISTRAR_PERDA",
+          client_name: nomeMatch,
+          motivo: motivoMatch?.[1]?.trim(),
+        },
       });
     }
   }
 
   // "quais os clientes / lista clientes"
   if (
-    /(?:quais|list[ae]|me\s+(?:diz|fala|mostra))\s+(?:os\s+|meus\s+)?clientes|clientes\s+(?:que\s+tenho\s+)?(?:no|do)\s+crm|meus\s+clientes/i.test(msg)
+    /(?:quais|list[ae]|me\s+(?:diz|fala|mostra))\s+(?:os\s+|meus\s+)?clientes|clientes\s+(?:que\s+tenho\s+)?(?:no|do)\s+crm|meus\s+clientes/i.test(
+      msg,
+    )
   ) {
     const clientes = await buscarClientesAtivos(sb, ownerId);
     if (!clientes.length) return "📭 Nenhum cliente no CRM ainda.";
@@ -1106,24 +1011,10 @@ async function executarComandoDireto(params: {
       `📋 *Seus ${clientes.length} clientes:*\n` +
       clientes
         .map((c) => {
-          const valor = c.valor_negociado ? ` — R$ ${c.valor_negociado.toLocaleString("pt-BR")}` : "";
+          const valor = c.valor_negociado
+            ? ` — R$ ${c.valor_negociado.toLocaleString("pt-BR")}`
+            : "";
           return `• *${c.nome}* — ${CRM_LABELS[c.etapa_funil] ?? c.etapa_funil}${valor}`;
-        })
-        .join("\n")
-    );
-  }
-
-  // "pendentes / quem tá sem resposta"
-  if (/pendente|sem\s+resposta|aguardando/i.test(msg)) {
-    const agora = Date.now();
-    if (!allPending.length) return "📭 Nenhum cliente aguardando resposta agora.";
-    return (
-      `📬 *${allPending.length} aguardando:*\n` +
-      allPending
-        .map((p) => {
-          const horas = Math.floor((agora - new Date(p.created_at).getTime()) / 3_600_000);
-          const idade = horas >= 24 ? `${Math.floor(horas / 24)}d` : `${horas}h`;
-          return `• *${p.client_name}* (${idade}): "${p.client_message}"`;
         })
         .join("\n")
     );
@@ -1132,7 +1023,7 @@ async function executarComandoDireto(params: {
   return null;
 }
 
-// ─── PAZ: assistente de vendas do Felipe ─────────────────────────────────────
+// ─── PAZ: assistente de vendas ────────────────────────────────────────────────
 
 async function paz(params: {
   sb: SupabaseClient;
@@ -1144,7 +1035,9 @@ async function paz(params: {
 
   const openaiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
   if (!openaiKey) {
-    await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ OpenAI não configurada.").catch(() => {});
+    await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ OpenAI não configurada.").catch(
+      () => {},
+    );
     return;
   }
 
@@ -1158,20 +1051,16 @@ async function paz(params: {
         historicoFelipePaz = await buscarHistoricoPazMessages(sb, pazConversationId, 12);
       }
     }
-    console.log(`[PAZ] memória: convId=${pazConversationId ?? "null"}, msgs=${historicoFelipePaz.length}`);
+    console.log(
+      `[PAZ] memória: convId=${pazConversationId ?? "null"}, msgs=${historicoFelipePaz.length}`,
+    );
 
-    // Clientes pendentes (aguardando decisão de resposta)
-    const { data: allPendingRaw } = await sb
-      .from("ai_pending_responses")
-      .select("*")
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(5);
-    const allPending = (allPendingRaw ?? []) as PendingRecord[];
-
-    // ── Tenta executar comando diretamente (sem IA) ─────────────────────────────
+    // ── Tenta executar comando direto (sem IA) ──────────────────────────────────
     const respostaDireta = await executarComandoDireto({
-      sb, ownerId, evolutionConfig, mensagem, allPending,
+      sb,
+      ownerId,
+      evolutionConfig,
+      mensagem,
     }).catch((err) => {
       console.warn("[PAZ] Erro no comando direto:", err);
       return null;
@@ -1180,10 +1069,31 @@ async function paz(params: {
     if (respostaDireta !== null) {
       if (pazConversationId) {
         const now = new Date().toISOString();
-        await sb.from("messages").insert([
-          { conversation_id: pazConversationId, direction: "incoming", sender: "Felipe", type: "text", content: mensagem, status: "delivered", sent_at: now, metadata: { source: "paz-self-chat" } },
-          { conversation_id: pazConversationId, direction: "outgoing", sender: "PAZ", type: "text", content: respostaDireta, status: "delivered", sent_at: now, metadata: { source: "paz-direct" } },
-        ]).catch(() => {});
+        await sb
+          .from("messages")
+          .insert([
+            {
+              conversation_id: pazConversationId,
+              direction: "incoming",
+              sender: "Felipe",
+              type: "text",
+              content: mensagem,
+              status: "delivered",
+              sent_at: now,
+              metadata: { source: "paz-self-chat" },
+            },
+            {
+              conversation_id: pazConversationId,
+              direction: "outgoing",
+              sender: "PAZ",
+              type: "text",
+              content: respostaDireta,
+              status: "delivered",
+              sent_at: now,
+              metadata: { source: "paz-direct" },
+            },
+          ])
+          .catch(() => {});
       }
       await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, respostaDireta);
       return;
@@ -1204,27 +1114,11 @@ async function paz(params: {
       .map((c) => c.metadata as Record<string, unknown>)
       .filter((m) => m?.push_name);
 
-    const agora = Date.now();
     const dataAtual = new Date().toLocaleString("pt-BR", {
       timeZone: "America/Sao_Paulo",
       dateStyle: "full",
       timeStyle: "short",
     });
-
-    let contextoPendentes = "";
-    if (allPending.length === 0) {
-      contextoPendentes = "\n\n📭 Nenhum cliente aguardando resposta agora.";
-    } else {
-      const linhas = allPending.map((p, i) => {
-        const horas = Math.floor((agora - new Date(p.created_at).getTime()) / 3_600_000);
-        const idadeStr = horas >= 24 ? `${Math.floor(horas / 24)}d atrás` : `${horas}h atrás`;
-        return (
-          `${i + 1}. *${p.client_name}* (${idadeStr}): "${p.client_message}"\n` +
-          `   💡 Sugestão: "${p.suggested_text}"`
-        );
-      });
-      contextoPendentes = `\n\n📬 *${allPending.length} aguardando resposta:*\n` + linhas.join("\n");
-    }
 
     let contextoCrm = "";
     if (clientesAtivos.length > 0) {
@@ -1232,7 +1126,9 @@ async function paz(params: {
         `\n\n📋 *Clientes no CRM:*\n` +
         clientesAtivos
           .map((c) => {
-            const valor = c.valor_negociado ? ` — R$ ${c.valor_negociado.toLocaleString("pt-BR")}` : "";
+            const valor = c.valor_negociado
+              ? ` — R$ ${c.valor_negociado.toLocaleString("pt-BR")}`
+              : "";
             return `• *${c.nome}* — ${CRM_LABELS[c.etapa_funil] ?? c.etapa_funil}${valor}`;
           })
           .join("\n");
@@ -1243,41 +1139,33 @@ async function paz(params: {
       const linhas = contatosDesconhecidos.map(
         (m) => `• *${m.push_name}* (+${(m.remote_jid as string)?.split("@")[0] ?? "?"})`,
       );
-      contextoDesconhecidos = `\n\n📥 *Contatos no WhatsApp sem cadastro no CRM:*\n` + linhas.join("\n");
+      contextoDesconhecidos =
+        `\n\n📥 *Contatos no WhatsApp sem cadastro no CRM:*\n` + linhas.join("\n");
     }
 
     // Histórico de conversa do cliente mencionado
     let historicoCliente = "";
     const msgLower = mensagem.toLowerCase();
-    const mencionadoPending = allPending.find((p) =>
-      msgLower.includes(p.client_name.toLowerCase().split(" ")[0]),
-    );
-    if (mencionadoPending) {
-      const hist = await buscarHistoricoConversa(sb, mencionadoPending.conversation_id, 20);
-      historicoCliente = hist
-        ? `\n\n📝 *Conversa com ${mencionadoPending.client_name}:*\n${hist}`
-        : `\n\n📝 *${mencionadoPending.client_name}* ainda não tem histórico.`;
-    } else {
-      for (const c of clientesAtivos) {
-        const primeiroNome = c.nome.split(" ")[0].toLowerCase();
-        if (primeiroNome.length >= 3 && msgLower.includes(primeiroNome)) {
-          const cf = await buscarClientePorNome(sb, ownerId, c.nome);
-          if (cf) {
-            const { data: conv } = await sb
-              .from("conversations")
-              .select("id")
-              .eq("client_id", cf.id)
-              .eq("status", "open")
-              .maybeSingle();
-            if (conv) {
-              const hist = await buscarHistoricoConversa(sb, conv.id, 20);
-              historicoCliente = hist
-                ? `\n\n📝 *Conversa com ${c.nome}:*\n${hist}`
-                : `\n\n📝 *${c.nome}* está no CRM mas sem mensagens registradas.`;
-            }
+    for (const c of clientesAtivos) {
+      const primeiroNome = c.nome.split(" ")[0].toLowerCase();
+      if (primeiroNome.length >= 3 && msgLower.includes(primeiroNome)) {
+        const cf = await buscarClientePorNome(sb, ownerId, c.nome);
+        if (cf) {
+          const { data: conv } = await sb
+            .from("conversations")
+            .select("id")
+            .eq("client_id", cf.id)
+            .eq("channel", "whatsapp")
+            .eq("status", "open")
+            .maybeSingle();
+          if (conv) {
+            const hist = await buscarHistoricoConversa(sb, conv.id, 20);
+            historicoCliente = hist
+              ? `\n\n📝 *Conversa com ${c.nome}:*\n${hist}`
+              : `\n\n📝 *${c.nome}* está no CRM mas sem mensagens registradas.`;
           }
-          break;
         }
+        break;
       }
     }
 
@@ -1287,7 +1175,8 @@ async function paz(params: {
       `Hoje: ${dataAtual}\n\n` +
       `## COMO FUNCIONA\n` +
       `Felipe te manda mensagens de texto ou áudio descrevendo o dia dele em linguagem natural.\n` +
-      `Você extrai as ações necessárias para o CRM e as retorna em JSON estruturado.\n\n` +
+      `Você extrai as ações necessárias para o CRM e as retorna em JSON estruturado.\n` +
+      `IMPORTANTE: você NUNCA envia mensagens para os clientes. Apenas atualiza o CRM e responde ao Felipe.\n\n` +
       `## RETORNE SEMPRE ESTE JSON EXATO\n` +
       `{"resposta":"mensagem natural para Felipe (WhatsApp, use *negrito*, emojis)","acoes":[...array de ações...]}\n\n` +
       `## TIPOS DE AÇÃO DISPONÍVEIS\n` +
@@ -1306,8 +1195,6 @@ async function paz(params: {
       `{"resposta":"🎉 Incrível! Venda de R$ 45.000 com João Alves registrada!","acoes":[{"tipo":"REGISTRAR_VENDA","client_name":"João Alves","deal_value":45000}]}\n\n` +
       `"Tive reunião com Maria Lima às 14h, ficou de visitar o apartamento na sexta" →\n` +
       `{"resposta":"✅ Reunião com Maria registrada! Visita agendada para sexta.","acoes":[{"tipo":"REGISTRAR_ATIVIDADE","client_name":"Maria Lima","activity_type":"MEETING","activity_title":"Reunião com Maria Lima","completed_at":"${new Date().toISOString()}"},{"tipo":"CRIAR_TAREFA","client_name":"Maria Lima","activity_type":"VISIT","task_title":"Visita ao apartamento","due_at":"${new Date(Date.now() + 5 * 86400000).toISOString()}"}]}\n\n` +
-      `"Cadastra o Carlos Silva, telefone 51999887766, interessado em apartamento 3 quartos" →\n` +
-      `{"resposta":"✅ Carlos Silva adicionado como Novo Lead!","acoes":[{"tipo":"CRIAR_LEAD","client_name":"Carlos Silva","client_phone":"51999887766"}]}\n\n` +
       `## REGRAS\n` +
       `1. NUNCA invente dados — se faltam infos, use null e mencione na resposta o que está faltando\n` +
       `2. Uma mensagem pode gerar MÚLTIPLAS ações — ex: criar lead + criar tarefa + registrar atividade\n` +
@@ -1316,7 +1203,6 @@ async function paz(params: {
       `5. Telefones: apenas dígitos com DDD (sem +55 ou espaços)\n` +
       `6. Se Felipe apenas conversa (perguntas, estratégias), use tipo CONVERSAR com acoes=[]\n` +
       `7. Retorne APENAS o JSON — sem texto fora do JSON\n` +
-      contextoPendentes +
       contextoCrm +
       contextoDesconhecidos +
       historicoCliente;
@@ -1338,11 +1224,17 @@ async function paz(params: {
       });
 
       if (!res.ok) {
-        await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ Erro ao processar. Tente novamente.");
+        await enviarWhatsApp(
+          evolutionConfig,
+          FELIPE_PHONE,
+          "⚠️ Erro ao processar. Tente novamente.",
+        );
         return;
       }
 
-      const json = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+      const json = (await res.json()) as {
+        choices?: Array<{ message?: { content?: string } }>;
+      };
       const respostaCompleta = json.choices?.[0]?.message?.content?.trim() ?? "";
 
       const { texto, acoes } = parsearRespostaIA(respostaCompleta);
@@ -1385,7 +1277,12 @@ async function paz(params: {
       for (const acao of acoes) {
         if (acao.tipo === "CONVERSAR") continue;
         try {
-          const resultado = await executarAcao({ sb, ownerId, evolutionConfig, allPending, acao });
+          const resultado = await executarAcao({
+            sb,
+            ownerId,
+            evolutionConfig,
+            acao,
+          });
           if (resultado) {
             await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, resultado);
           }
@@ -1395,10 +1292,17 @@ async function paz(params: {
       }
     } catch (err) {
       console.error("[PAZ] erro →", err instanceof Error ? err.message : String(err));
-      await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ PAZ com erro. Tente novamente.").catch(() => {});
+      await enviarWhatsApp(
+        evolutionConfig,
+        FELIPE_PHONE,
+        "⚠️ PAZ com erro. Tente novamente.",
+      ).catch(() => {});
     }
   } catch (errFatal) {
-    console.error("[PAZ] erro fatal →", errFatal instanceof Error ? errFatal.message : String(errFatal));
+    console.error(
+      "[PAZ] erro fatal →",
+      errFatal instanceof Error ? errFatal.message : String(errFatal),
+    );
     await enviarWhatsApp(
       evolutionConfig,
       FELIPE_PHONE,
@@ -1469,24 +1373,33 @@ Deno.serve(async (req) => {
   const felipeVariants = normalizePhone(FELIPE_PHONE).map((v) => v.replace(/\D/g, ""));
   const isSelfChat = felipeVariants.includes(rawPhone.replace(/\D/g, ""));
 
-  console.log(`[WEBHOOK] fromMe=${key?.fromMe} rawPhone=${rawPhone} isSelfChat=${isSelfChat} instance=${instanceName}`);
+  console.log(
+    `[WEBHOOK] fromMe=${key?.fromMe} rawPhone=${rawPhone} isSelfChat=${isSelfChat} instance=${instanceName}`,
+  );
 
   if (isSelfChat) {
     console.log(`[WEBHOOK] Felipe → PAZ: type=${type} content="${content?.slice(0, 60)}"`);
 
-    // Determina o conteúdo: texto direto OU transcrição de áudio
     let mensagemFinal = content;
 
     if (type === "audio" && attachment?.url) {
       const openaiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
       if (openaiKey) {
-        await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "🎙️ _Transcrevendo áudio..._").catch(() => {});
+        await enviarWhatsApp(
+          evolutionConfig,
+          FELIPE_PHONE,
+          "🎙️ _Transcrevendo áudio..._",
+        ).catch(() => {});
         const transcricao = await transcreverAudio(attachment.url as string, openaiKey);
         if (transcricao) {
           mensagemFinal = transcricao;
           console.log(`[WEBHOOK] Áudio transcrito: "${transcricao.slice(0, 100)}"`);
         } else {
-          await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ Não consegui transcrever o áudio. Tenta mandar como texto?").catch(() => {});
+          await enviarWhatsApp(
+            evolutionConfig,
+            FELIPE_PHONE,
+            "⚠️ Não consegui transcrever o áudio. Tenta mandar como texto?",
+          ).catch(() => {});
           return new Response("OK", { status: 200 });
         }
       }
@@ -1525,29 +1438,31 @@ Deno.serve(async (req) => {
         const sentAt = messageTimestamp
           ? new Date(messageTimestamp * 1000).toISOString()
           : new Date().toISOString();
-        await supabase.from("messages").insert({
-          conversation_id: convOut.id,
-          direction: "outgoing",
-          sender: "Felipe Paz",
-          type,
-          content,
-          status: "delivered",
-          sent_at: sentAt,
-          metadata: { provider_msg_id: key?.id, remote_jid: remoteJid, source: "whatsapp-direct" },
-        }).catch((err) => console.warn("[WEBHOOK] Erro ao salvar mensagem saída:", err));
-
         await supabase
-          .from("ai_pending_responses")
-          .update({ status: "sent", sent_at: new Date().toISOString() })
-          .eq("client_id", clienteOut.id)
-          .eq("status", "pending")
-          .catch(() => {});
+          .from("messages")
+          .insert({
+            conversation_id: convOut.id,
+            direction: "outgoing",
+            sender: "Felipe Paz",
+            type,
+            content,
+            status: "delivered",
+            sent_at: sentAt,
+            metadata: {
+              provider_msg_id: key?.id,
+              remote_jid: remoteJid,
+              source: "whatsapp-direct",
+            },
+          })
+          .catch((err) =>
+            console.warn("[WEBHOOK] Erro ao salvar mensagem saída:", err),
+          );
       }
     }
     return new Response("OK", { status: 200 });
   }
 
-  // ─── Fluxo de cliente ─────────────────────────────────────────────────────────
+  // ─── Mensagem de cliente (apenas salva — nenhuma notificação automática) ─────
   const phoneVariants = normalizePhone(rawPhone);
 
   const { data: clientData } = await supabase
@@ -1559,9 +1474,8 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   if (!clientData) {
+    // Contato desconhecido: salva conversa para histórico, sem notificar Felipe
     if (!content) return new Response("OK", { status: 200 });
-
-    const fone = `+${rawPhone}`;
 
     const { data: allUnknownConvs } = await supabase
       .from("conversations")
@@ -1574,7 +1488,6 @@ Deno.serve(async (req) => {
     );
 
     let unknownConvId: string | null = null;
-    const isPrimeiroContatoDesconhecido = !existingUnknownConv;
 
     if (existingUnknownConv) {
       unknownConvId = existingUnknownConv.id;
@@ -1614,45 +1527,11 @@ Deno.serve(async (req) => {
         .catch((err) => console.warn("[WEBHOOK] Erro ao salvar msg desconhecido:", err));
     }
 
-    if (isPrimeiroContatoDesconhecido && evolutionConfig.apiKey) {
-      const openaiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
-      let sugestao = "";
-      if (openaiKey) {
-        try {
-          const r = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "gpt-4o-mini",
-              max_tokens: 100,
-              messages: [
-                { role: "system", content: "Sugira uma resposta de primeiro atendimento como corretor Felipe Paz. Breve, natural, máximo 2 linhas." },
-                { role: "user", content: `Número desconhecido (${fone}): "${content}"\n\nSugira uma resposta:` },
-              ],
-            }),
-          });
-          if (r.ok) {
-            const j = (await r.json()) as { choices?: Array<{ message?: { content?: string } }> };
-            sugestao = j.choices?.[0]?.message?.content?.trim() ?? "";
-          }
-        } catch { /* ignora */ }
-      }
-
-      const notif =
-        `📱 *Novo contato: ${pushName}*\n${fone}\n\n` +
-        `"${content}"` +
-        (sugestao ? `\n\n💬 *PAZ sugere:*\n"${sugestao}"` : "") +
-        `\n\n_Diga "PAZ adiciona ${pushName}" para criar no CRM._`;
-
-      enviarWhatsApp(evolutionConfig, FELIPE_PHONE, notif).catch((err) =>
-        console.error("[WEBHOOK] Erro ao notificar número desconhecido:", err),
-      );
-    }
-
-    console.log(`[WEBHOOK] contato desconhecido ${isPrimeiroContatoDesconhecido ? "novo" : "msg adicional"}: ${rawPhone} (${pushName})`);
+    console.log(`[WEBHOOK] contato desconhecido: ${rawPhone} (${pushName}) — salvo silenciosamente`);
     return new Response("OK", { status: 200 });
   }
 
+  // ─── Cliente cadastrado: salva mensagem, sem notificação ─────────────────────
   const clientId = clientData.id;
 
   const { data: existingConv } = await supabase
@@ -1665,7 +1544,6 @@ Deno.serve(async (req) => {
     .maybeSingle();
 
   let conversationId: string;
-  const isPrimeiroContato = !existingConv;
 
   if (existingConv) {
     conversationId = existingConv.id;
@@ -1709,21 +1587,6 @@ Deno.serve(async (req) => {
     return new Response("Error saving message", { status: 500 });
   }
 
-  console.log(`[WEBHOOK] mensagem salva | ${pushName} | ${content?.slice(0, 60)}`);
-
-  if (content && evolutionConfig.apiKey) {
-    processarMensagemIa({
-      sb: supabase,
-      clienteId: clientId,
-      conversationId,
-      mensagem: content,
-      telefone: rawPhone,
-      clienteNome: pushName,
-      ownerId,
-      evolutionConfig,
-      isPrimeiroContato,
-    }).catch((err) => console.error("[WEBHOOK] Erro PAZ notificação:", err));
-  }
-
+  console.log(`[WEBHOOK] mensagem de ${pushName} salva — aguarda comando do Felipe`);
   return new Response("OK", { status: 200 });
 });
