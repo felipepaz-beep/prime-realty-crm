@@ -921,11 +921,19 @@ async function executarComandoDireto(params: {
   const { sb, ownerId, evolutionConfig, mensagem } = params;
   const msg = mensagem.trim();
 
+  // ── ping de diagnóstico ──────────────────────────────────────────────────────
+  if (/^paz\s+ping$/i.test(msg)) {
+    return "🤖 PAZ ativa e respondendo!";
+  }
+
   const mCriar = msg.match(
-    /^(?:paz\s+)?(?:adicione?|adiciona(?:r)?|cadastra(?:r)?)\s+(.+?)(?:\s+(?:no|ao)\s+(?:crm|sistema))?$/i,
+    /^(?:paz\s+)?(?:add|adicione?|adiciona(?:r)?|cadastra(?:r)?|cria(?:r)?)\s+(.+?)(?:\s+(?:no|ao)\s+(?:crm|sistema))?(?:\s+como\s+lead\s+(?:novo|nova))?$/i,
   );
   if (mCriar) {
-    const nome = mCriar[1].replace(/\s+(?:no|ao)\s+(?:crm|sistema)\s*$/i, "").trim();
+    const nome = mCriar[1]
+      .replace(/\s+(?:no|ao)\s+(?:crm|sistema)\s*$/i, "")
+      .replace(/\s+como\s+lead\s+(?:novo|nova)\s*$/i, "")
+      .trim();
     if (nome)
       return executarAcao({
         sb,
@@ -1346,7 +1354,12 @@ Deno.serve(async (req) => {
 
   // ─── Detecta mensagem de Felipe para PAZ ─────────────────────────────────────
   const felipeVariants = normalizePhone(FELIPE_PHONE).map((v) => v.replace(/\D/g, ""));
-  const isSelfChat = felipeVariants.includes(rawPhone.replace(/\D/g, ""));
+  // isSelfChat: either remoteJid is Felipe's own number (true self-chat)
+  // OR any outgoing message starting with "paz " (fallback for Evolution API routing)
+  const isSelfPhone = felipeVariants.includes(rawPhone.replace(/\D/g, ""));
+  const isPazFromMe =
+    !!key?.fromMe && (content ?? "").trim().toLowerCase().startsWith("paz ");
+  const isSelfChat = isSelfPhone || isPazFromMe;
 
   console.log(
     `[WEBHOOK] fromMe=${key?.fromMe} rawPhone=${rawPhone} isSelfChat=${isSelfChat} instance=${instanceName}`,
