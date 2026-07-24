@@ -786,10 +786,11 @@ async function paz(params: {
 
   const openaiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
   if (!openaiKey) {
-    await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ OpenAI não configurada.");
+    await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ OpenAI não configurada.").catch(() => {});
     return;
   }
 
+  try {
   // Memória da conversa Felipe ↔ PAZ
   let pazConversationId: string | null = null;
   let historicoFelipePaz: Array<{ role: "user" | "assistant"; content: string }> = [];
@@ -1034,7 +1035,12 @@ async function paz(params: {
     }
   } catch (err) {
     console.error("[PAZ] erro →", err instanceof Error ? err.message : String(err));
-    await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ PAZ com erro. Tente novamente.");
+    await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, "⚠️ PAZ com erro. Tente novamente.").catch(() => {});
+  }
+
+  } catch (errFatal) {
+    console.error("[PAZ] erro fatal (fora do bloco IA) →", errFatal instanceof Error ? errFatal.message : String(errFatal));
+    await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, `⚠️ PAZ travou: ${errFatal instanceof Error ? errFatal.message.slice(0, 120) : "erro desconhecido"}`).catch(() => {});
   }
 }
 
