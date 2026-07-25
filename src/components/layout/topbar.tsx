@@ -71,6 +71,12 @@ export function Topbar() {
     return () => document.removeEventListener('keydown', handler);
   }, []);
 
+  useEffect(() => {
+    const handler = () => setSearchOpen(true);
+    window.addEventListener('prime-crm:open-search', handler);
+    return () => window.removeEventListener('prime-crm:open-search', handler);
+  }, []);
+
   const name = profile?.display_name || profile?.full_name || profile?.email || "Corretor";
   const initials = name
     .split(" ")

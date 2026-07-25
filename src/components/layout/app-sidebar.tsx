@@ -4,7 +4,6 @@ import {
   Users,
   Calendar,
   KanbanSquare,
-  Clock,
   Wallet,
   Sparkles,
   BarChart3,
@@ -33,6 +32,7 @@ type NavItem = {
   url: string;
   icon: React.ComponentType<{ className?: string }>;
   soon?: boolean;
+  action?: () => void;
 };
 
 const workspaceItems: NavItem[] = [
@@ -41,14 +41,18 @@ const workspaceItems: NavItem[] = [
   { title: "Clientes", url: "/clientes", icon: Users },
   { title: "Agenda", url: "/agenda", icon: Calendar },
   { title: "Kanban", url: "/kanban", icon: KanbanSquare },
-  { title: "Timeline", url: "/timeline", icon: Clock, soon: true },
 ];
 
 const toolItems: NavItem[] = [
   { title: "Financeiro", url: "/financeiro", icon: Wallet },
   { title: "IA", url: "/ia", icon: Sparkles },
   { title: "Relatórios", url: "/relatorios", icon: BarChart3 },
-  { title: "Pesquisa", url: "/pesquisa", icon: Search, soon: true },
+  {
+    title: "Pesquisa",
+    url: "/pesquisa",
+    icon: Search,
+    action: () => window.dispatchEvent(new CustomEvent("prime-crm:open-search")),
+  },
 ];
 
 export function AppSidebar() {
@@ -61,7 +65,7 @@ export function AppSidebar() {
     const Icon = item.icon;
     const content = (
       <SidebarMenuButton
-        asChild={!item.soon}
+        asChild={!item.soon && !item.action}
         isActive={isActive}
         tooltip={item.title}
         className="data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground"
@@ -81,6 +85,11 @@ export function AppSidebar() {
                 </span>
               </>
             )}
+          </button>
+        ) : item.action ? (
+          <button type="button" onClick={item.action} className="flex w-full items-center gap-2">
+            <Icon className="h-4 w-4 shrink-0" />
+            {!collapsed && <span className="truncate">{item.title}</span>}
           </button>
         ) : (
           <Link to={item.url} className="flex items-center gap-2">
