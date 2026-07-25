@@ -411,11 +411,11 @@ async function buscarClientesAtivos(
   sb: SupabaseClient,
   ownerId: string | null,
 ): Promise<Array<{ nome: string; etapa_funil: string; valor_negociado: number | null }>> {
-  const base = sb.from("clients").select("nome, etapa_funil, valor_negociado").is("deleted_at", null).not("tags", "cs", '{"_paz_system_"}').order("updated_at", { ascending: false }).limit(30);
+  const base = sb.from("clients").select("nome, etapa_funil, valor_negociado").is("deleted_at", null).order("updated_at", { ascending: false }).limit(30);
   const { data } = ownerId ? await base.eq("owner_id", ownerId) : await base;
   if (data && data.length > 0) return data as Array<{ nome: string; etapa_funil: string; valor_negociado: number | null }>;
   if (!ownerId) return [];
-  const { data: fallback } = await sb.from("clients").select("nome, etapa_funil, valor_negociado").is("deleted_at", null).not("tags", "cs", '{"_paz_system_"}').order("updated_at", { ascending: false }).limit(30);
+  const { data: fallback } = await sb.from("clients").select("nome, etapa_funil, valor_negociado").is("deleted_at", null).order("updated_at", { ascending: false }).limit(30);
   return (fallback ?? []) as Array<{ nome: string; etapa_funil: string; valor_negociado: number | null }>;
 }
 
@@ -439,7 +439,7 @@ async function buscarClientePorNome(
   if (!nome) return null;
   const primeiroNome = nome.split(" ")[0];
   const sel = "id, nome, whatsapp, telefone, email, etapa_funil, status, valor_negociado, proximo_followup";
-  const baseQuery = () => sb.from("clients").select(sel).is("deleted_at", null).not("tags", "cs", '{"_paz_system_"}').ilike("nome", `%${primeiroNome}%`).limit(1);
+  const baseQuery = () => sb.from("clients").select(sel).is("deleted_at", null).ilike("nome", `%${primeiroNome}%`).limit(1);
   if (ownerId) {
     const { data } = await baseQuery().eq("owner_id", ownerId).maybeSingle();
     if (data) return data;
@@ -927,7 +927,7 @@ Deno.serve(async (req) => {
 
   if (key?.fromMe === true) {
     const phoneVariants = normalizePhone(rawPhone);
-    const { data: clienteOut } = await supabase.from("clients").select("id").eq("owner_id", ownerId).is("deleted_at", null).not("tags", "cs", '{"_paz_system_"}').or(phoneVariants.flatMap((p) => [`telefone.eq.${p}`, `whatsapp.eq.${p}`]).join(",")).maybeSingle();
+    const { data: clienteOut } = await supabase.from("clients").select("id").eq("owner_id", ownerId).is("deleted_at", null).or(phoneVariants.flatMap((p) => [`telefone.eq.${p}`, `whatsapp.eq.${p}`]).join(",")).maybeSingle();
     if (clienteOut && content) {
       const { data: convOut } = await supabase.from("conversations").select("id").eq("client_id", clienteOut.id).eq("channel", "whatsapp").eq("status", "open").maybeSingle();
       if (convOut) {
