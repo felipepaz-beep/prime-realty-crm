@@ -270,9 +270,8 @@ async function registrarTimelineEdge(
   description?: string,
   metadata?: Record<string, unknown>,
 ): Promise<void> {
-  await sb
-    .from("client_timeline")
-    .insert({
+  try {
+    await sb.from("client_timeline").insert({
       client_id: clientId,
       owner_id: ownerId,
       category,
@@ -281,8 +280,10 @@ async function registrarTimelineEdge(
       description: description ?? null,
       metadata: metadata ?? {},
       created_by: ownerId,
-    })
-    .catch((err) => console.warn("[TIMELINE] Erro ao registrar:", err?.message ?? err));
+    });
+  } catch (err) {
+    console.warn("[TIMELINE] Erro ao registrar:", (err as Error)?.message ?? err);
+  }
 }
 
 // ─── Histórico de conversa com cliente ───────────────────────────────────────
@@ -772,10 +773,12 @@ async function paz(params: {
     if (respostaDireta !== null) {
       if (pazConversationId) {
         const now = new Date().toISOString();
-        await sb.from("messages").insert([
-          { conversation_id: pazConversationId, direction: "incoming", sender: "Felipe", type: "text", content: mensagem, status: "delivered", sent_at: now, metadata: { source: "paz-self-chat" } },
-          { conversation_id: pazConversationId, direction: "outgoing", sender: "PAZ", type: "text", content: respostaDireta, status: "delivered", sent_at: now, metadata: { source: "paz-direct" } },
-        ]).catch(() => {});
+        try {
+          await sb.from("messages").insert([
+            { conversation_id: pazConversationId, direction: "incoming", sender: "Felipe", type: "text", content: mensagem, status: "delivered", sent_at: now, metadata: { source: "paz-self-chat" } },
+            { conversation_id: pazConversationId, direction: "outgoing", sender: "PAZ", type: "text", content: respostaDireta, status: "delivered", sent_at: now, metadata: { source: "paz-direct" } },
+          ]);
+        } catch {}
       }
       await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, respostaDireta);
       return;
@@ -863,10 +866,12 @@ async function paz(params: {
 
       if (pazConversationId) {
         const now = new Date().toISOString();
-        await sb.from("messages").insert([
-          { conversation_id: pazConversationId, direction: "incoming", sender: "Felipe", type: "text", content: mensagem, status: "delivered", sent_at: now, metadata: { source: "paz-self-chat" } },
-          { conversation_id: pazConversationId, direction: "outgoing", sender: "PAZ", type: "text", content: texto || respostaCompleta, status: "delivered", sent_at: now, metadata: { source: "paz-response", acoes_count: acoes.length } },
-        ]).catch((err) => console.warn("[PAZ] Erro ao salvar histórico:", err));
+        try {
+          await sb.from("messages").insert([
+            { conversation_id: pazConversationId, direction: "incoming", sender: "Felipe", type: "text", content: mensagem, status: "delivered", sent_at: now, metadata: { source: "paz-self-chat" } },
+            { conversation_id: pazConversationId, direction: "outgoing", sender: "PAZ", type: "text", content: texto || respostaCompleta, status: "delivered", sent_at: now, metadata: { source: "paz-response", acoes_count: acoes.length } },
+          ]);
+        } catch (err) { console.warn("[PAZ] Erro ao salvar histórico:", err); }
       }
 
       if (texto) await enviarWhatsApp(evolutionConfig, FELIPE_PHONE, texto);
@@ -967,7 +972,9 @@ Deno.serve(async (req) => {
       const { data: convOut } = await supabase.from("conversations").select("id").eq("client_id", clienteOut.id).eq("channel", "whatsapp").eq("status", "open").maybeSingle();
       if (convOut) {
         const sentAt = messageTimestamp ? new Date(messageTimestamp * 1000).toISOString() : new Date().toISOString();
-        await supabase.from("messages").insert({ conversation_id: convOut.id, direction: "outgoing", sender: "Felipe Paz", type, content, status: "delivered", sent_at: sentAt, metadata: { provider_msg_id: key?.id, remote_jid: remoteJid, source: "whatsapp-direct" } }).catch((err) => console.warn("[WEBHOOK] Erro ao salvar mensagem saída:", err));
+        try {
+          await supabase.from("messages").insert({ conversation_id: convOut.id, direction: "outgoing", sender: "Felipe Paz", type, content, status: "delivered", sent_at: sentAt, metadata: { provider_msg_id: key?.id, remote_jid: remoteJid, source: "whatsapp-direct" } });
+        } catch (err) { console.warn("[WEBHOOK] Erro ao salvar mensagem saída:", err); }
       }
     }
     return new Response("OK", { status: 200 });
@@ -985,12 +992,16 @@ Deno.serve(async (req) => {
     if (existingUnknownConv) {
       unknownConvId = existingUnknownConv.id;
     } else {
-      const { data: newUnknownConv } = await supabase.from("conversations").insert({ owner_id: ownerId, client_id: null, channel: "whatsapp", status: "open", metadata: { remote_jid: remoteJid, push_name: pushName, unknown_contact: true } }).select("id").single().catch(() => ({ data: null, error: null }));
-      unknownConvId = (newUnknownConv as { id: string } | null)?.id ?? null;
+      try {
+        const { data: newUnknownConv } = await supabase.from("conversations").insert({ owner_id: ownerId, client_id: null, channel: "whatsapp", status: "open", metadata: { remote_jid: remoteJid, push_name: pushName, unknown_contact: true } }).select("id").single();
+        unknownConvId = (newUnknownConv as { id: string } | null)?.id ?? null;
+      } catch { unknownConvId = null; }
     }
     if (unknownConvId) {
       const sentAt = messageTimestamp ? new Date(messageTimestamp * 1000).toISOString() : new Date().toISOString();
-      await supabase.from("messages").insert({ conversation_id: unknownConvId, direction: "incoming", sender: pushName, type, content, attachment, status: "delivered", sent_at: sentAt, metadata: { provider_msg_id: key?.id, remote_jid: remoteJid } }).catch((err) => console.warn("[WEBHOOK] Erro ao salvar msg desconhecido:", err));
+      try {
+        await supabase.from("messages").insert({ conversation_id: unknownConvId, direction: "incoming", sender: pushName, type, content, attachment, status: "delivered", sent_at: sentAt, metadata: { provider_msg_id: key?.id, remote_jid: remoteJid } });
+      } catch (err) { console.warn("[WEBHOOK] Erro ao salvar msg desconhecido:", err); }
     }
     console.log(`[WEBHOOK] contato desconhecido: ${rawPhone} (${pushName}) — salvo silenciosamente`);
     return new Response("OK", { status: 200 });
