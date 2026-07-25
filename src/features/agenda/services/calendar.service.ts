@@ -1,3 +1,4 @@
+import { supabase } from '@/integrations/supabase/client';
 import type { Activity } from '../types';
 
 export interface CalendarEventPayload {
@@ -17,18 +18,35 @@ export interface CalendarServiceInterface {
 }
 
 export const CalendarService: CalendarServiceInterface = {
-  async createEvent(_payload: CalendarEventPayload): Promise<string> {
-    console.info('[CalendarService] Google Calendar não conectado — evento não sincronizado.');
-    return '';
-  },
-  async updateEvent(_externalId: string, _payload: Partial<CalendarEventPayload>): Promise<void> {
-    console.info('[CalendarService] Google Calendar não conectado — atualização ignorada.');
-  },
-  async deleteEvent(_externalId: string): Promise<void> {
-    console.info('[CalendarService] Google Calendar não conectado — exclusão ignorada.');
-  },
   async isConnected(): Promise<boolean> {
-    return false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase as any)
+      .from('profiles')
+      .select('google_calendar_connected')
+      .maybeSingle();
+    return (data as { google_calendar_connected?: boolean } | null)?.google_calendar_connected ?? false;
+  },
+
+  async createEvent(payload: CalendarEventPayload): Promise<string> {
+    const { data, error } = await supabase.functions.invoke('google-calendar-sync', {
+      body: { action: 'create', payload },
+    });
+    if (error) throw error;
+    return (data as { googleEventId: string }).googleEventId;
+  },
+
+  async updateEvent(externalId: string, payload: Partial<CalendarEventPayload>): Promise<void> {
+    const { error } = await supabase.functions.invoke('google-calendar-sync', {
+      body: { action: 'update', googleEventId: externalId, payload },
+    });
+    if (error) throw error;
+  },
+
+  async deleteEvent(externalId: string): Promise<void> {
+    const { error } = await supabase.functions.invoke('google-calendar-sync', {
+      body: { action: 'delete', googleEventId: externalId },
+    });
+    if (error) throw error;
   },
 };
 
@@ -44,7 +62,9 @@ export function activityToCalendarPayload(activity: Activity): CalendarEventPayl
     endAt,
     location: activity.location ?? undefined,
     reminderMinutes: activity.reminder_at
-      ? Math.round((new Date(startAt).getTime() - new Date(activity.reminder_at).getTime()) / 60_000)
+      ? Math.round(
+          (new Date(startAt).getTime() - new Date(activity.reminder_at).getTime()) / 60_000,
+        )
       : undefined,
   };
 }

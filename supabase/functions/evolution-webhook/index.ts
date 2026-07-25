@@ -46,7 +46,10 @@ interface AcaoIA {
     | "ADICIONAR_NOTA"
     | "AGENDAR_FOLLOWUP"
     | "ATUALIZAR_CLIENTE"
-    | "REGISTRAR_COMISSAO";
+    | "REGISTRAR_COMISSAO"
+    | "AGENDAR_VISITA"
+    | "AGENDAR_REUNIAO"
+    | "ADICIONAR_LEMBRETE";
   client_name?: string;
   client_phone?: string;
   client_email?: string;
@@ -68,6 +71,8 @@ interface AcaoIA {
   nota?: string;
   temperatura?: string;
   task_title?: string;
+  titulo?: string;
+  duration_minutes?: number;
 }
 
 // ─── Extração de mensagem ─────────────────────────────────────────────────────
@@ -286,6 +291,66 @@ async function registrarTimelineEdge(
     });
   } catch (err) {
     console.warn("[TIMELINE] Erro ao registrar:", (err as Error)?.message ?? err);
+  }
+}
+
+// ─── Google Calendar sync (fire-and-forget) ───────────────────────────────────
+
+async function sincronizarGoogleCalendar(
+  sb: SupabaseClient,
+  ownerId: string,
+  title: string,
+  scheduledAt: string,
+  durationMinutes: number,
+  description?: string,
+  location?: string,
+): Promise<string | null> {
+  try {
+    const { data: intg } = await sb
+      .from("user_integrations")
+      .select("google_calendar_refresh_token_ciphertext")
+      .eq("user_id", ownerId)
+      .maybeSingle();
+    const refreshToken = (intg as Record<string, string> | null)?.google_calendar_refresh_token_ciphertext;
+    if (!refreshToken) return null;
+
+    const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+        client_id: Deno.env.get("GOOGLE_CLIENT_ID") ?? "",
+        client_secret: Deno.env.get("GOOGLE_CLIENT_SECRET") ?? "",
+      }),
+    });
+    if (!tokenRes.ok) return null;
+    const { access_token: accessToken } = await tokenRes.json();
+
+    const start = new Date(scheduledAt);
+    const end = new Date(start.getTime() + durationMinutes * 60_000);
+    const body: Record<string, unknown> = {
+      summary: title,
+      start: { dateTime: start.toISOString(), timeZone: "America/Sao_Paulo" },
+      end: { dateTime: end.toISOString(), timeZone: "America/Sao_Paulo" },
+    };
+    if (description) body.description = description;
+    if (location) body.location = location;
+
+    const evRes = await fetch(
+      "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!evRes.ok) return null;
+    const { id } = await evRes.json();
+    return id as string;
+  } catch (err) {
+    console.warn("[PAZ] Google Calendar sync failed:", err);
+    return null;
   }
 }
 
@@ -607,6 +672,11 @@ async function executarAcao(params: {
     }).select("id").single();
     if (taskErr || !task) return `⚠️ Erro ao criar tarefa: ${taskErr?.message ?? "?"}`;
     if (ownerId && clienteId) await registrarTimelineEdge(sb, ownerId, clienteId, "tarefa", "tarefa_criada", titulo, undefined, { activity_id: task.id, due_at: dueAt });
+    // Sincroniza com Google Calendar se conectado
+    if (ownerId && dueAt) {
+      const gcId = await sincronizarGoogleCalendar(sb, ownerId, titulo, dueAt, 30, acao.activity_description ?? undefined, acao.location ?? undefined);
+      if (gcId) await sb.from("activities").update({ metadata: { source: "paz", google_calendar_event_id: gcId } }).eq("id", task.id);
+    }
     const dueStr = dueAt ? `\n📅 ${new Date(dueAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}` : "";
     const clienteStr = clienteNome !== "sem cliente" ? ` com *${clienteNome}*` : "";
     return `✅ Tarefa criada: *${titulo}*${clienteStr}${dueStr}`;
@@ -695,8 +765,14 @@ async function executarAcao(params: {
     if (!cliente) return `⚠️ Cliente "${nome}" não encontrado.`;
     const dataFollowup = acao.due_at ?? acao.scheduled_at ?? null;
     if (dataFollowup) await sb.from("clients").update({ proximo_followup: dataFollowup }).eq("id", cliente.id);
-    await sb.from("activities").insert({ owner_id: ownerId, client_id: cliente.id, type: "FOLLOWUP", title: acao.activity_title ?? `Follow-up com ${cliente.nome}`, description: acao.activity_description ?? null, status: "PENDING", priority: (acao.priority ?? "MEDIUM").toUpperCase(), scheduled_at: dataFollowup, due_at: dataFollowup, metadata: { source: "paz" } });
+    const tituloFollowup = acao.activity_title ?? `Follow-up com ${cliente.nome}`;
+    const { data: followupAct } = await sb.from("activities").insert({ owner_id: ownerId, client_id: cliente.id, type: "FOLLOWUP", title: tituloFollowup, description: acao.activity_description ?? null, status: "PENDING", priority: (acao.priority ?? "MEDIUM").toUpperCase(), scheduled_at: dataFollowup, due_at: dataFollowup, metadata: { source: "paz" } }).select("id").single();
     if (ownerId) await registrarTimelineEdge(sb, ownerId, cliente.id, "comunicacao", "followup_criado", `Follow-up agendado com ${cliente.nome}`, undefined, { due_at: dataFollowup });
+    // Sincroniza com Google Calendar se conectado
+    if (ownerId && dataFollowup && followupAct) {
+      const gcId = await sincronizarGoogleCalendar(sb, ownerId, tituloFollowup, dataFollowup, 30);
+      if (gcId) await sb.from("activities").update({ metadata: { source: "paz", google_calendar_event_id: gcId } }).eq("id", followupAct.id);
+    }
     const dataStr = dataFollowup ? ` para *${new Date(dataFollowup).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}*` : "";
     return `📅 Follow-up${dataStr} agendado com *${cliente.nome}*`;
   }
@@ -714,6 +790,63 @@ async function executarAcao(params: {
     await sb.from("clients").update(updates).eq("id", cliente.id);
     if (ownerId) await registrarTimelineEdge(sb, ownerId, cliente.id, "ciclo_vida", "cliente_atualizado", `Dados de ${cliente.nome} atualizados via PAZ`, undefined, { campos: Object.keys(updates) });
     return `✅ *${cliente.nome}* atualizado: ${Object.keys(updates).join(", ")}`;
+  }
+
+  if (acao.tipo === "AGENDAR_VISITA" || acao.tipo === "AGENDAR_REUNIAO") {
+    const isVisita = acao.tipo === "AGENDAR_VISITA";
+    const scheduledAt = acao.scheduled_at ?? acao.due_at ?? null;
+    if (!scheduledAt) return "⚠️ Preciso da data e hora para agendar.";
+    let clienteId: string | null = null;
+    let clienteNome = "";
+    if (acao.client_name) {
+      const cliente = await resolverCliente();
+      if (cliente) { clienteId = cliente.id; clienteNome = cliente.nome; }
+    }
+    const tipo = isVisita ? "VISIT" : "MEETING";
+    const titulo = isVisita
+      ? `Visita${clienteNome ? ` — ${clienteNome}` : ""}`
+      : `Reunião${clienteNome ? ` com ${clienteNome}` : ""}`;
+    const duracao = acao.duration_minutes ?? (isVisita ? 60 : 60);
+    const { data: act } = await sb.from("activities").insert({
+      owner_id: ownerId, client_id: clienteId, type: tipo, title: titulo,
+      description: acao.activity_description ?? null, status: "PENDING",
+      priority: (acao.priority ?? "MEDIUM").toUpperCase(),
+      scheduled_at: scheduledAt, due_at: scheduledAt,
+      duration_minutes: duracao, location: acao.location ?? null,
+      metadata: { source: "paz" },
+    }).select("id").single();
+    if (ownerId && clienteId) await registrarTimelineEdge(sb, ownerId, clienteId, "comunicacao", "visita_agendada", titulo, acao.activity_description ?? undefined, { scheduled_at: scheduledAt, location: acao.location });
+    // Sincroniza com Google Calendar
+    if (ownerId && act) {
+      const gcId = await sincronizarGoogleCalendar(sb, ownerId, titulo, scheduledAt, duracao, acao.activity_description ?? undefined, acao.location ?? undefined);
+      if (gcId) await sb.from("activities").update({ metadata: { source: "paz", google_calendar_event_id: gcId } }).eq("id", act.id);
+    }
+    const dataStr = `*${new Date(scheduledAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}*`;
+    const localStr = acao.location ? `\n📍 ${acao.location}` : "";
+    const clienteStr = clienteNome ? `\n👤 ${clienteNome}` : "";
+    const gcStr = ownerId ? "\n📆 _Adicionado ao Google Calendar_" : "";
+    return `${isVisita ? "🏠" : "🤝"} *${isVisita ? "Visita" : "Reunião"} agendada!*\n📅 ${dataStr}${clienteStr}${localStr}${gcStr}`;
+  }
+
+  if (acao.tipo === "ADICIONAR_LEMBRETE") {
+    const titulo = acao.titulo ?? acao.task_title ?? acao.activity_title ?? "Lembrete";
+    const scheduledAt = acao.scheduled_at ?? acao.due_at ?? null;
+    if (!scheduledAt) return "⚠️ Preciso da data e hora para criar o lembrete.";
+    const { data: act } = await sb.from("activities").insert({
+      owner_id: ownerId, client_id: null, type: "PERSONAL", title: titulo,
+      description: acao.activity_description ?? null, status: "PENDING",
+      priority: (acao.priority ?? "MEDIUM").toUpperCase(),
+      scheduled_at: scheduledAt, due_at: scheduledAt,
+      duration_minutes: 15, metadata: { source: "paz" },
+    }).select("id").single();
+    // Sincroniza com Google Calendar
+    if (ownerId && act) {
+      const gcId = await sincronizarGoogleCalendar(sb, ownerId, titulo, scheduledAt, 15, acao.activity_description ?? undefined);
+      if (gcId) await sb.from("activities").update({ metadata: { source: "paz", google_calendar_event_id: gcId } }).eq("id", act.id);
+    }
+    const dataStr = `*${new Date(scheduledAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}*`;
+    const gcStr = ownerId ? "\n📆 _Adicionado ao Google Calendar_" : "";
+    return `🔔 *Lembrete criado!*\n📌 ${titulo}\n📅 ${dataStr}${gcStr}`;
   }
 
   return "";
@@ -777,7 +910,106 @@ async function executarComandoDireto(params: {
     );
   }
 
+  // Comando direto: "paz visita [nome] [data] [hora]"
+  // Ex: "paz visita João Silva amanhã 10h" | "paz visita João Silva 25/07 14:30"
+  const mVisita = msg.match(
+    /^paz\s+visita\s+(.+?)\s+(hoje|amanh[aã]|segunda(?:-feira)?|ter[cç]a(?:-feira)?|quarta(?:-feira)?|quinta(?:-feira)?|sexta(?:-feira)?|s[aá]bado|domingo|\d{1,2}\/\d{1,2}(?:\/\d{4})?)\s+(\d{1,2}[:h]\d{0,2}h?)/i,
+  );
+  if (mVisita) {
+    if (!ownerId) return "⚠️ Sessão não identificada.";
+    const nomeCliente = mVisita[1].trim();
+    const dateStr = mVisita[2].trim();
+    const timeStr = mVisita[3].trim();
+    const scheduledAt = parseDateTimePAZ(dateStr, timeStr);
+    if (!scheduledAt) return "⚠️ Data/hora inválida. Tente: paz visita João 25/07 10h";
+    const cliente = await buscarClientePorNome(sb, ownerId, nomeCliente);
+    const titulo = `Visita${cliente ? ` — ${cliente.nome}` : ` — ${nomeCliente}`}`;
+    const { data: act } = await sb.from("activities").insert({
+      owner_id: ownerId, client_id: cliente?.id ?? null, type: "VISIT", title: titulo,
+      status: "PENDING", priority: "MEDIUM", scheduled_at: scheduledAt,
+      due_at: scheduledAt, duration_minutes: 60, metadata: { source: "paz" },
+    }).select("id").single();
+    const gcStr = await (async () => {
+      const gcId = await sincronizarGoogleCalendar(sb, ownerId, titulo, scheduledAt, 60);
+      if (gcId && act) { await sb.from("activities").update({ metadata: { source: "paz", google_calendar_event_id: gcId } }).eq("id", act.id); return "\n📆 _Adicionado ao Google Calendar_"; }
+      return "";
+    })();
+    if (cliente && ownerId) await registrarTimelineEdge(sb, ownerId, cliente.id, "comunicacao", "visita_agendada", titulo, undefined, { scheduled_at: scheduledAt });
+    const dataFmt = new Date(scheduledAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
+    return `🏠 *Visita agendada!*\n📅 *${dataFmt}*\n👤 ${cliente?.nome ?? nomeCliente}${gcStr}`;
+  }
+
+  // Comando direto: "paz lembrete [texto] [data] [hora]"
+  // Ex: "paz lembrete ligar pro banco sexta 9h" | "paz lembrete reunião de equipe 25/07 14h"
+  const mLembrete = msg.match(
+    /^paz\s+(?:lembrete|add\s+lembrete)\s+(.+?)\s+(hoje|amanh[aã]|segunda(?:-feira)?|ter[cç]a(?:-feira)?|quarta(?:-feira)?|quinta(?:-feira)?|sexta(?:-feira)?|s[aá]bado|domingo|\d{1,2}\/\d{1,2}(?:\/\d{4})?)\s+(\d{1,2}[:h]\d{0,2}h?)/i,
+  );
+  if (mLembrete) {
+    if (!ownerId) return "⚠️ Sessão não identificada.";
+    const titulo = mLembrete[1].trim();
+    const dateStr = mLembrete[2].trim();
+    const timeStr = mLembrete[3].trim();
+    const scheduledAt = parseDateTimePAZ(dateStr, timeStr);
+    if (!scheduledAt) return "⚠️ Data/hora inválida. Tente: paz lembrete [texto] 25/07 10h";
+    const { data: act } = await sb.from("activities").insert({
+      owner_id: ownerId, client_id: null, type: "PERSONAL", title: titulo,
+      status: "PENDING", priority: "MEDIUM", scheduled_at: scheduledAt,
+      due_at: scheduledAt, duration_minutes: 15, metadata: { source: "paz" },
+    }).select("id").single();
+    const gcStr = await (async () => {
+      const gcId = await sincronizarGoogleCalendar(sb, ownerId, titulo, scheduledAt, 15);
+      if (gcId && act) { await sb.from("activities").update({ metadata: { source: "paz", google_calendar_event_id: gcId } }).eq("id", act.id); return "\n📆 _Adicionado ao Google Calendar_"; }
+      return "";
+    })();
+    const dataFmt = new Date(scheduledAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
+    return `🔔 *Lembrete criado!*\n📌 ${titulo}\n📅 *${dataFmt}*${gcStr}`;
+  }
+
   return null;
+}
+
+// ─── Parser de data/hora para comandos diretos do PAZ ─────────────────────────
+
+function parseDateTimePAZ(dateStr: string, timeStr: string): string | null {
+  const ds = dateStr.toLowerCase().trim().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  let date = new Date(today);
+  if (ds === "hoje") {
+    // keep today
+  } else if (ds.startsWith("amanh")) {
+    date.setDate(date.getDate() + 1);
+  } else if (ds.startsWith("segunda")) {
+    date.setDate(date.getDate() + ((1 - date.getDay() + 7) % 7 || 7));
+  } else if (ds.startsWith("terca") || ds.startsWith("terca")) {
+    date.setDate(date.getDate() + ((2 - date.getDay() + 7) % 7 || 7));
+  } else if (ds.startsWith("quarta")) {
+    date.setDate(date.getDate() + ((3 - date.getDay() + 7) % 7 || 7));
+  } else if (ds.startsWith("quinta")) {
+    date.setDate(date.getDate() + ((4 - date.getDay() + 7) % 7 || 7));
+  } else if (ds.startsWith("sexta")) {
+    date.setDate(date.getDate() + ((5 - date.getDay() + 7) % 7 || 7));
+  } else if (ds.startsWith("sab")) {
+    date.setDate(date.getDate() + ((6 - date.getDay() + 7) % 7 || 7));
+  } else if (ds.startsWith("dom")) {
+    date.setDate(date.getDate() + ((0 - date.getDay() + 7) % 7 || 7));
+  } else {
+    const m = ds.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);
+    if (!m) return null;
+    const year = m[3] ? parseInt(m[3]) : today.getFullYear();
+    date = new Date(year, parseInt(m[2]) - 1, parseInt(m[1]));
+  }
+
+  // Parse time: "10h", "10:30", "10h30", "14:30h"
+  const ts = timeStr.toLowerCase().replace(/h$/, "").replace("h", ":");
+  const parts = ts.split(":");
+  const hours = parseInt(parts[0]);
+  const minutes = parts[1] ? parseInt(parts[1]) || 0 : 0;
+  if (isNaN(hours) || hours < 0 || hours > 23) return null;
+  date.setHours(hours, minutes, 0, 0);
+
+  return date.toISOString();
 }
 
 // ─── PAZ: assistente de vendas ────────────────────────────────────────────────
@@ -870,7 +1102,10 @@ async function paz(params: {
       `CRIAR_LEAD: novo cliente/lead. Campos: client_name, client_phone, client_email, etapa\n` +
       `MOVER_CRM: mudar etapa do funil. Campos: client_name, etapa (novo_lead|contato_iniciado|qualificacao|visita_agendada|proposta|negociacao|fechado_ganho|fechado_perdido)\n` +
       `REGISTRAR_ATIVIDADE: atividade JÁ REALIZADA. Campos: client_name, activity_type (CALL|MEETING|VISIT|EMAIL), activity_title, activity_outcome, scheduled_at, completed_at\n` +
-      `CRIAR_TAREFA: compromisso FUTURO. Campos: client_name, activity_type, task_title, activity_description, due_at (ISO 8601), priority (LOW|MEDIUM|HIGH|URGENT), location\n` +
+      `CRIAR_TAREFA: tarefa/compromisso FUTURO genérico. Campos: client_name, activity_type, task_title, activity_description, due_at (ISO 8601), priority (LOW|MEDIUM|HIGH|URGENT), location\n` +
+      `AGENDAR_VISITA: agendar visita a imóvel ou ao cliente. Campos: client_name, scheduled_at (ISO 8601 com horário), location, activity_description, duration_minutes (padrão 60)\n` +
+      `AGENDAR_REUNIAO: agendar reunião com cliente ou equipe. Campos: client_name, scheduled_at (ISO 8601 com horário), location, activity_description, duration_minutes (padrão 60)\n` +
+      `ADICIONAR_LEMBRETE: lembrete pessoal sem cliente. Campos: titulo, scheduled_at (ISO 8601 com horário), activity_description\n` +
       `REGISTRAR_VENDA: negócio FECHADO. Campos: client_name, deal_value (VGV = valor da venda, inteiro), property_code (código do imóvel se mencionado, senão omita)\n` +
       `REGISTRAR_COMISSAO: registra comissão no financeiro. Campos: client_name, deal_value (VGV da venda), commission_percentage (% DE FELIPE SOBRE O VGV, ex: 3 para 3%, 2.5 para 2,5%), property_code (código do imóvel se informado)\n` +
       `REGISTRAR_PERDA: negócio perdido. Campos: client_name, motivo\n` +

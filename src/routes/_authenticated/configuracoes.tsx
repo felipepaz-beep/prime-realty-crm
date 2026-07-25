@@ -15,9 +15,11 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { useSettings, useSalvarSettings, useIntegrations, useDesconectarIntegration, useSalvarIntegration } from '@/features/configuracoes/hooks/use-settings';
+import { useQueryClient } from '@tanstack/react-query';
+import { useSettings, useSalvarSettings, useIntegrations, useDesconectarIntegration, useSalvarIntegration, settingsKeys } from '@/features/configuracoes/hooks/use-settings';
 import { DEFAULT_AGENDA_SETTINGS, DEFAULT_FINANCEIRO_SETTINGS, DEFAULT_IA_SETTINGS, DEFAULT_NOTIFICACOES_SETTINGS, INTEGRATION_DESCRIPTIONS, INTEGRATION_LABELS, INTEGRATION_STATUS_CLASSES, INTEGRATION_STATUS_LABELS } from '@/features/configuracoes/types';
 import type { AgendaSettings, FinanceiroSettings, IASettings, IntegrationProvider, IntegrationStatus, NotificacoesSettings } from '@/features/configuracoes/types';
+import { supabase } from '@/integrations/supabase/client';
 
 export const Route = createFileRoute('/_authenticated/configuracoes')({
   head: () => ({ meta: [{ title: 'Configurações — Corretor CRM' }, { name: 'robots', content: 'noindex' }] }),
@@ -191,6 +193,7 @@ function IntegracoesConfig() {
   const { data: integrations, isLoading } = useIntegrations();
   const desconectar = useDesconectarIntegration();
   const salvar = useSalvarIntegration();
+  const queryClient = useQueryClient();
   const [wpDialog, setWpDialog] = useState(false);
   const [wpForm, setWpForm] = useState(EMPTY_WP_FORM);
   const [claudeDialog, setClaudeDialog] = useState(false);
@@ -200,10 +203,41 @@ function IntegracoesConfig() {
   const PRODUTIVIDADE: IntegrationProvider[] = ['google_calendar','google_drive'];
   const getStatus = (p: IntegrationProvider): IntegrationStatus => integrations?.find((i) => i.provider === p)?.status ?? 'disconnected';
 
+  // Detect OAuth callback result (?google_calendar=success|error)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gcStatus = params.get('google_calendar');
+    if (gcStatus === 'success') {
+      toast.success('Google Calendar conectado com sucesso! 🎉');
+      window.history.replaceState({}, '', '/configuracoes');
+      queryClient.invalidateQueries({ queryKey: settingsKeys.integrations() });
+    } else if (gcStatus === 'error') {
+      toast.error('Erro ao conectar o Google Calendar. Verifique as configurações e tente novamente.');
+      window.history.replaceState({}, '', '/configuracoes');
+    }
+  }, [queryClient]);
+
   const handleDesconectar = async (p: IntegrationProvider) => {
     if (!confirm(`Desconectar ${INTEGRATION_LABELS[p]}?`)) return;
+    if (p === 'google_calendar') {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+        await fetch(`${supabaseUrl}/functions/v1/google-calendar-oauth?action=revoke`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        }).catch(() => {});
+      }
+    }
     await desconectar.mutateAsync(p);
     toast.success('Integração desconectada.');
+  };
+
+  const handleConectarGoogleCalendar = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { toast.error('Faça login primeiro.'); return; }
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+    window.location.href = `${supabaseUrl}/functions/v1/google-calendar-oauth?action=authorize&user_id=${user.id}`;
   };
 
   const handleAbrirWp = () => {
@@ -279,7 +313,7 @@ function IntegracoesConfig() {
       </Card>
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><Zap className="h-4 w-4" />Produtividade</CardTitle><CardDescription className="text-xs">Sincronize com ferramentas do Google</CardDescription></CardHeader>
-        <CardContent>{PRODUTIVIDADE.map((p) => <IntegrationCard key={p} provider={p} status={getStatus(p)} onDesconectar={() => handleDesconectar(p)} />)}</CardContent>
+        <CardContent>{PRODUTIVIDADE.map((p) => <IntegrationCard key={p} provider={p} status={getStatus(p)} onDesconectar={() => handleDesconectar(p)} onConectar={p === 'google_calendar' ? handleConectarGoogleCalendar : undefined} />)}</CardContent>
       </Card>
 
       <Dialog open={wpDialog} onOpenChange={setWpDialog}>
