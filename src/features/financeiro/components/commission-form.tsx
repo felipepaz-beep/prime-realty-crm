@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+import { useClientes } from '@/features/clientes/hooks/use-clientes';
 import { commissionSchema, type CommissionFormValues } from '../schemas';
 import {
   COMMISSION_STATUS_LABELS,
@@ -36,6 +37,9 @@ type Props = {
 };
 
 export function CommissionForm({ onSubmit, onCancel, isLoading, defaultValues }: Props) {
+  const { data: clientesData } = useClientes({ porPagina: 200, ordenarPor: 'nome', ordem: 'asc' });
+  const clientes = clientesData?.data ?? [];
+
   const form = useForm<CommissionFormValues>({
     resolver: zodResolver(commissionSchema),
     defaultValues: {
@@ -63,6 +67,35 @@ export function CommissionForm({ onSubmit, onCancel, isLoading, defaultValues }:
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <FormField
+          control={form.control}
+          name="client_id"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Cliente</FormLabel>
+              <Select
+                value={field.value ?? ''}
+                onValueChange={(v) => field.onChange(v || null)}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um cliente (opcional)" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="">Nenhum cliente</SelectItem>
+                  {clientes.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField
             control={form.control}

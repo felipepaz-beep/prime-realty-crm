@@ -623,7 +623,8 @@ async function executarAcao(params: {
     const vgvStr = vgv > 0 ? `\n💰 VGV: R$ ${vgv.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "";
     const codStr = acao.property_code ? `\n🏠 Imóvel: ${acao.property_code}` : "";
     const primeiroNome = cliente.nome.split(" ")[0];
-    return `🎉 *VENDA REGISTRADA!*\n\n*${cliente.nome}* → *Vendido ✅*${vgvStr}${codStr}\n\n_Para lançar a comissão no financeiro, manda:_\n*paz comissão ${primeiroNome} 3%*\n_(substitua 3% pela sua % real)_`;
+    const codExemplo = acao.property_code ? ` ${acao.property_code}` : " AP-1234";
+    return `🎉 *VENDA REGISTRADA!*\n\n*${cliente.nome}* → *Vendido ✅*${vgvStr}${codStr}\n\n_Para lançar a comissão no financeiro, manda:_\n*paz comissão ${primeiroNome} 3%${codExemplo}*\n_(substitua 3% pela % real e o código pelo imóvel)_`;
   }
 
   if (acao.tipo === "REGISTRAR_COMISSAO") {
@@ -636,9 +637,8 @@ async function executarAcao(params: {
     const vgv = acao.deal_value ?? cliente.valor_negociado ?? 0;
     const pct = acao.commission_percentage ?? 0;
     if (!pct) return "⚠️ Me informa a porcentagem da sua comissão.";
-    // Comissão bruta padrão = 6% do VGV (total da corretagem do imóvel)
-    const grossValue = Math.round(vgv * 0.06);
-    // Comissão de Felipe = % do VGV informada por ele
+    // gross_value = VGV (valor bruto da transação); commission_value = % de Felipe sobre o VGV
+    const grossValue = vgv;
     const commissionValue = Math.round((vgv * pct) / 100);
     try {
       await sb.from("commissions").insert({
@@ -661,7 +661,6 @@ async function executarAcao(params: {
       `💰 *Comissão registrada no financeiro!*\n\n` +
       `📋 *${cliente.nome}*${codStr}\n` +
       `💵 VGV: R$ ${vgv.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}\n` +
-      `🏦 Corretagem bruta (6%): R$ ${grossValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}\n` +
       `📊 Sua comissão (${pct}%): *R$ ${commissionValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}*\n` +
       `📌 Status: Prevista ✅`
     );
@@ -739,22 +738,25 @@ async function executarComandoDireto(params: {
     return `📋 *Seus ${clientes.length} clientes:*\n` + clientes.map((c) => { const valor = c.valor_negociado ? ` — R$ ${c.valor_negociado.toLocaleString("pt-BR")}` : ""; return `• *${c.nome}* — ${CRM_LABELS[c.etapa_funil] ?? c.etapa_funil}${valor}`; }).join("\n");
   }
 
-  // Comando direto de comissão: "paz comissão [nome] [%]" — sem depender de IA/contexto
-  const mComissao = msg.match(/^paz\s+comiss[aã]o\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*%/i);
+  // Comando direto: "paz comissão [nome] [%] [código opcional]"
+  // Ex: "paz comissão guilherme 3% AP-1234" ou "paz comissão guilherme rodrigues 2,5%"
+  const mComissao = msg.match(/^paz\s+comiss[aã]o\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*%(?:\s+([A-Za-z0-9][\w\-]*))?/i);
   if (mComissao) {
     if (!ownerId) return "⚠️ Sessão não identificada.";
     const nomeCliente = mComissao[1].trim();
     const pct = parseFloat(mComissao[2].replace(",", "."));
+    const propertyCode = mComissao[3]?.trim() ?? null;
     const cliente = await buscarClientePorNome(sb, ownerId, nomeCliente);
     if (!cliente) return `⚠️ Cliente "${nomeCliente}" não encontrado no CRM.`;
     const vgv = cliente.valor_negociado ?? 0;
     if (vgv === 0) return `⚠️ Valor de venda de ${cliente.nome} não encontrado. Registra a venda primeiro com o valor.`;
-    const grossValue = Math.round(vgv * 0.06);
+    const grossValue = vgv;
     const commissionValue = Math.round((vgv * pct) / 100);
     try {
       await sb.from("commissions").insert({
         owner_id: ownerId,
         client_id: cliente.id,
+        property_code: propertyCode,
         gross_value: grossValue,
         commission_percentage: pct,
         commission_value: commissionValue,
@@ -765,11 +767,11 @@ async function executarComandoDireto(params: {
       console.error("[PAZ] Erro ao inserir comissão direta:", err);
       return "⚠️ Erro ao salvar comissão no financeiro. Tente novamente.";
     }
+    const codStr = propertyCode ? `\n🏠 Imóvel: ${propertyCode}` : "";
     return (
       `💰 *Comissão registrada no financeiro!*\n\n` +
-      `📋 *${cliente.nome}*\n` +
+      `📋 *${cliente.nome}*${codStr}\n` +
       `💵 VGV: R$ ${vgv.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}\n` +
-      `🏦 Corretagem bruta (6%): R$ ${grossValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}\n` +
       `📊 Sua comissão (${pct}%): *R$ ${commissionValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}*\n` +
       `📌 Status: Prevista ✅`
     );
