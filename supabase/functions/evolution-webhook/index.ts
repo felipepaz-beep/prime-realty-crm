@@ -411,20 +411,12 @@ async function buscarClientesAtivos(
   sb: SupabaseClient,
   ownerId: string | null,
 ): Promise<Array<{ nome: string; etapa_funil: string; valor_negociado: number | null }>> {
+  const base = sb.from("clients").select("nome, etapa_funil, valor_negociado").is("deleted_at", null).not("tags", "cs", '{"_paz_system_"}').order("updated_at", { ascending: false }).limit(30);
+  const { data } = ownerId ? await base.eq("owner_id", ownerId) : await base;
+  if (data && data.length > 0) return data as Array<{ nome: string; etapa_funil: string; valor_negociado: number | null }>;
   if (!ownerId) return [];
-  const { data } = await sb
-    .from("clients")
-    .select("nome, etapa_funil, valor_negociado")
-    .eq("owner_id", ownerId)
-    .is("deleted_at", null)
-    .not("tags", "cs", '{"_paz_system_"}')
-    .order("updated_at", { ascending: false })
-    .limit(30);
-  return (data ?? []) as Array<{
-    nome: string;
-    etapa_funil: string;
-    valor_negociado: number | null;
-  }>;
+  const { data: fallback } = await sb.from("clients").select("nome, etapa_funil, valor_negociado").is("deleted_at", null).not("tags", "cs", '{"_paz_system_"}').order("updated_at", { ascending: false }).limit(30);
+  return (fallback ?? []) as Array<{ nome: string; etapa_funil: string; valor_negociado: number | null }>;
 }
 
 // ─── Busca cliente pelo nome ──────────────────────────────────────────────────
@@ -444,19 +436,16 @@ async function buscarClientePorNome(
   valor_negociado: number | null;
   proximo_followup: string | null;
 } | null> {
-  if (!ownerId || !nome) return null;
-  const { data } = await sb
-    .from("clients")
-    .select(
-      "id, nome, whatsapp, telefone, email, etapa_funil, status, valor_negociado, proximo_followup",
-    )
-    .eq("owner_id", ownerId)
-    .is("deleted_at", null)
-    .not("tags", "cs", '{"_paz_system_"}')
-    .ilike("nome", `%${nome.split(" ")[0]}%`)
-    .limit(1)
-    .maybeSingle();
-  return data ?? null;
+  if (!nome) return null;
+  const primeiroNome = nome.split(" ")[0];
+  const sel = "id, nome, whatsapp, telefone, email, etapa_funil, status, valor_negociado, proximo_followup";
+  const baseQuery = () => sb.from("clients").select(sel).is("deleted_at", null).not("tags", "cs", '{"_paz_system_"}').ilike("nome", `%${primeiroNome}%`).limit(1);
+  if (ownerId) {
+    const { data } = await baseQuery().eq("owner_id", ownerId).maybeSingle();
+    if (data) return data;
+  }
+  const { data: fallback } = await baseQuery().maybeSingle();
+  return fallback ?? null;
 }
 
 // ─── Busca contato desconhecido nas conversas ─────────────────────────────────
@@ -698,39 +687,7 @@ async function executarComandoDireto(params: {
 
   if (/^paz\s+ping$/i.test(msg)) return "🤖 PAZ ativa e respondendo!";
 
-  const mCriar = msg.match(/^(?:paz\s+)?(?:add|adicione?|adiciona(?:r)?|cadastra(?:r)?|cria(?:r)?)\s+(.+?)(?:\s+(?:no|ao)\s+(?:crm|sistema))?(?:\s+como\s+lead\s+(?:novo|nova))?$/i);
-  if (mCriar) {
-    const nome = mCriar[1]
-      .replace(/\s+(?:no|ao)\s+(?:crm|sistema)\s*$/i, "")
-      .replace(/\s+como\s+lead\s+(?:novo|nova)\s*$/i, "")
-      .trim();
-    if (nome) return executarAcao({ sb, ownerId, evolutionConfig, acao: { tipo: "CRIAR_LEAD", client_name: nome } });
-  }
-
-  const mMover = msg.match(/^(?:paz\s+)?(?:mov[ae](?:r)?|mud[ae]|transfer[ei](?:r[ae]?)?|coloca?(?:r)?)\s+(?:o\s+|a\s+)?(.+?)\s+(?:para?|pra|em|no\s+estágio|na\s+etapa)\s+(.+?)$/i);
-  if (mMover) {
-    const [, nomeCliente, etapaRaw] = mMover;
-    return executarAcao({ sb, ownerId, evolutionConfig, acao: { tipo: "MOVER_CRM", client_name: nomeCliente.trim(), etapa: etapaRaw.trim() } });
-  }
-
-  const mVenda = msg.match(/^(?:paz\s+)?(?:fechei|vend(?:a|i|eu)|vendido|ganho|contrato\s+assinado)\b.*?(?:com\s+)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-Za-zÀ-Ü][a-zà-ü]+)*)/i);
-  if (mVenda) {
-    const nomeMatch = mVenda[1]?.trim();
-    const valorMatch = msg.match(/r\$?\s*([\d.,]+)/i);
-    const valor = valorMatch ? parseFloat(valorMatch[1].replace(/\./g, "").replace(",", ".")) : undefined;
-    if (nomeMatch) return executarAcao({ sb, ownerId, evolutionConfig, acao: { tipo: "REGISTRAR_VENDA", client_name: nomeMatch, deal_value: valor } });
-  }
-
-  const mPerda = msg.match(/^(?:paz\s+)?(?:perdeu|perdi|não\s+fechou|negócio\s+perdido)\b.*?(?:com\s+(?:o\s+|a\s+)?)?([A-ZÀ-Ü][a-zà-ü]+(?:\s+[A-Za-zÀ-Ü][a-zà-ü]+)*)/i);
-  if (mPerda) {
-    const nomeMatch = mPerda[1]?.trim();
-    if (nomeMatch) {
-      const motivoMatch = msg.match(/(?:por(?:que)?|motivo)[:\s]+(.+)$/i);
-      return executarAcao({ sb, ownerId, evolutionConfig, acao: { tipo: "REGISTRAR_PERDA", client_name: nomeMatch, motivo: motivoMatch?.[1]?.trim() } });
-    }
-  }
-
-  if (/(?:quais|list[ae]|me\s+(?:diz|fala|mostra))\s+(?:os\s+|meus\s+)?clientes|clientes\s+(?:que\s+tenho\s+)?(?:no|do)\s+crm|meus\s+clientes/i.test(msg)) {
+  if (/(?:list[ae]|quais|mostra|me\s+d[aie])\s+(?:os\s+|meus\s+)?clientes|clientes\s+(?:no|do)\s+crm|meus\s+clientes/i.test(msg)) {
     const clientes = await buscarClientesAtivos(sb, ownerId);
     if (!clientes.length) return "📭 Nenhum cliente no CRM ainda.";
     return `📋 *Seus ${clientes.length} clientes:*\n` + clientes.map((c) => { const valor = c.valor_negociado ? ` — R$ ${c.valor_negociado.toLocaleString("pt-BR")}` : ""; return `• *${c.nome}* — ${CRM_LABELS[c.etapa_funil] ?? c.etapa_funil}${valor}`; }).join("\n");
@@ -847,8 +804,11 @@ async function paz(params: {
       `5. Telefones: apenas dígitos com DDD (sem +55 ou espaços)\n` +
       `6. Se Felipe apenas conversa (perguntas, estratégias), use tipo CONVERSAR com acoes=[]\n` +
       `7. Retorne APENAS o JSON — sem texto fora do JSON\n` +
-      `8. EXECUTE IMEDIATAMENTE — NUNCA peça confirmação antes de agir. Nunca diga "Você confirma?", "Posso prosseguir?", "Tem certeza?", "Preciso da sua aprovação explícita". Execute e confirme o resultado na resposta.\n` +
+      `8. EXECUTE IMEDIATAMENTE — NUNCA peça confirmação antes de agir. Nunca diga "Você confirma?", "Posso prosseguir?", "Tem certeza?". Execute e confirme o resultado na resposta.\n` +
       `9. Se faltar algum dado, salve o básico e pergunte o restante DEPOIS de executar — nunca antes.\n` +
+      `10. Valores monetários: "300 mil" = 300000, "1.2 milhão" = 1200000, "50k" = 50000. deal_value sempre número inteiro.\n` +
+      `11. client_name deve ser APENAS o nome da pessoa — sem "lead", "o", "a", "contato" ou outros prefixos.\n` +
+      `12. client_phone: remova +55, espaços e traços — só DDD + número (ex: "54991997074").\n` +
       contextoCrm + contextoDesconhecidos + historicoCliente;
 
     try {
