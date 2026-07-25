@@ -8,7 +8,6 @@ import {
   MessageCircle,
   BarChart2,
   Sparkles,
-  FileText,
   Users,
   Settings,
 } from 'lucide-react';
@@ -26,15 +25,14 @@ import { useClientes } from '@/features/clientes/hooks/use-clientes';
 import { ETAPA_FUNIL_LABELS } from '@/features/clientes/constants';
 
 const NAVEGACAO = [
-  { label: 'Clientes', to: '/clientes', icon: Users },
-  { label: 'Pipeline (Kanban)', to: '/kanban', icon: Kanban },
-  { label: 'Agenda', to: '/agenda', icon: Calendar },
-  { label: 'Financeiro', to: '/financeiro', icon: DollarSign },
-  { label: 'Comunicação', to: '/comunicacao', icon: MessageCircle },
-  { label: 'Documentos', to: '/documentos', icon: FileText },
-  { label: 'Relatórios', to: '/relatorios', icon: BarChart2 },
-  { label: 'Assistente IA', to: '/ia', icon: Sparkles },
-  { label: 'Configurações', to: '/configuracoes', icon: Settings },
+  { label: 'Clientes', to: '/clientes' as const, icon: Users },
+  { label: 'Pipeline (Kanban)', to: '/kanban' as const, icon: Kanban },
+  { label: 'Agenda', to: '/agenda' as const, icon: Calendar },
+  { label: 'Financeiro', to: '/financeiro' as const, icon: DollarSign },
+  { label: 'Comunicação', to: '/whatsapp' as const, icon: MessageCircle },
+  { label: 'Relatórios', to: '/relatorios' as const, icon: BarChart2 },
+  { label: 'Assistente IA', to: '/ia' as const, icon: Sparkles },
+  { label: 'Configurações', to: '/configuracoes' as const, icon: Settings },
 ];
 
 interface Props {
@@ -73,7 +71,7 @@ export function GlobalSearch({ open, onOpenChange }: Props) {
   );
 
   const handleSelectNav = useCallback(
-    (to: string) => {
+    (to: (typeof NAVEGACAO)[number]['to']) => {
       onOpenChange(false);
       navigate({ to });
     },
