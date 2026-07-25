@@ -1,6 +1,6 @@
 import { Bell, Moon, Sun, Search, LogOut, User as UserIcon } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -18,10 +18,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
+import { GlobalSearch } from "./global-search";
 
 export function Topbar() {
   const { resolvedTheme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const [searchOpen, setSearchOpen] = useState(false);
   const [profile, setProfile] = useState<{
     full_name: string | null;
     display_name: string | null;
@@ -56,6 +58,19 @@ export function Topbar() {
     navigate({ to: "/auth", replace: true });
   };
 
+  const openSearch = useCallback(() => setSearchOpen(true), []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen((o) => !o);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
+
   const name = profile?.display_name || profile?.full_name || profile?.email || "Corretor";
   const initials = name
     .split(" ")
@@ -72,8 +87,8 @@ export function Topbar() {
       <button
         type="button"
         className="group hidden md:flex items-center gap-2 h-9 px-3 rounded-md border border-input bg-muted/40 hover:bg-muted transition-colors text-sm text-muted-foreground min-w-[280px]"
-        disabled
-        aria-label="Pesquisar (em breve)"
+        onClick={openSearch}
+        aria-label="Pesquisar"
       >
         <Search className="h-4 w-4" />
         <span>Pesquisar…</span>
@@ -81,6 +96,8 @@ export function Topbar() {
           ⌘K
         </kbd>
       </button>
+
+      <GlobalSearch open={searchOpen} onOpenChange={setSearchOpen} />
 
       <div className="ml-auto flex items-center gap-1">
         <Tooltip>
