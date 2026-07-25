@@ -45,7 +45,8 @@ interface AcaoIA {
     | "REGISTRAR_PERDA"
     | "ADICIONAR_NOTA"
     | "AGENDAR_FOLLOWUP"
-    | "ATUALIZAR_CLIENTE";
+    | "ATUALIZAR_CLIENTE"
+    | "REGISTRAR_COMISSAO";
   client_name?: string;
   client_phone?: string;
   client_email?: string;
@@ -62,6 +63,7 @@ interface AcaoIA {
   priority?: string;
   location?: string;
   deal_value?: number;
+  commission_percentage?: number;
   nota?: string;
   temperatura?: string;
   task_title?: string;
@@ -618,7 +620,41 @@ async function executarAcao(params: {
     await sb.from("clients").update({ status: "ganho", etapa_funil: "fechado_ganho", ...(valor > 0 ? { valor_negociado: valor } : {}), updated_at: new Date().toISOString() }).eq("id", cliente.id);
     if (ownerId) await registrarTimelineEdge(sb, ownerId, cliente.id, "negocio", "venda_concluida", `Venda concluída com ${cliente.nome}`, valor > 0 ? `Valor: R$ ${valor.toLocaleString("pt-BR")}` : undefined, { valor_negociado: valor });
     const valorStr = valor > 0 ? `\n💰 R$ ${valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "";
-    return `🎉 *VENDA REGISTRADA!*\n\n*${cliente.nome}* → *Vendido ✅*${valorStr}`;
+    return `🎉 *VENDA REGISTRADA!*\n\n*${cliente.nome}* → *Vendido ✅*${valorStr}\n\n_Qual a % da sua comissão nessa venda?_`;
+  }
+
+  if (acao.tipo === "REGISTRAR_COMISSAO") {
+    const nome = acao.client_name;
+    if (!nome) return "⚠️ Me diz o nome do cliente da comissão.";
+    const cliente = await resolverCliente();
+    if (!cliente) return `⚠️ Cliente "${nome}" não encontrado no CRM.`;
+    if (!ownerId) return "⚠️ Sessão não identificada.";
+    const grossValue = acao.deal_value ?? cliente.valor_negociado ?? 0;
+    const pct = acao.commission_percentage ?? 0;
+    if (!pct) return "⚠️ Me informa a porcentagem da comissão.";
+    const commissionValue = Math.round((grossValue * pct) / 100);
+    try {
+      await sb.from("commissions").insert({
+        owner_id: ownerId,
+        client_id: cliente.id,
+        gross_value: grossValue,
+        commission_percentage: pct,
+        commission_value: commissionValue,
+        status: "prevista",
+        notes: `Registrado via PAZ WhatsApp`,
+      });
+    } catch (err) {
+      console.error("[PAZ] Erro ao inserir comissão:", err);
+      return "⚠️ Erro ao salvar a comissão no financeiro. Tente novamente.";
+    }
+    if (ownerId) await registrarTimelineEdge(sb, ownerId, cliente.id, "negocio", "venda_concluida", `Comissão registrada: ${pct}%`, `Venda: R$ ${grossValue.toLocaleString("pt-BR")} | Comissão: R$ ${commissionValue.toLocaleString("pt-BR")}`);
+    return (
+      `💰 *Comissão registrada no financeiro!*\n\n` +
+      `📋 *${cliente.nome}*\n` +
+      `💵 Venda: R$ ${grossValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}\n` +
+      `📊 Comissão (${pct}%): *R$ ${commissionValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}*\n` +
+      `📌 Status: Prevista ✅`
+    );
   }
 
   if (acao.tipo === "REGISTRAR_PERDA") {
@@ -787,15 +823,19 @@ async function paz(params: {
       `MOVER_CRM: mudar etapa do funil. Campos: client_name, etapa (novo_lead|contato_iniciado|qualificacao|visita_agendada|proposta|negociacao|fechado_ganho|fechado_perdido)\n` +
       `REGISTRAR_ATIVIDADE: atividade JÁ REALIZADA. Campos: client_name, activity_type (CALL|MEETING|VISIT|EMAIL), activity_title, activity_outcome, scheduled_at, completed_at\n` +
       `CRIAR_TAREFA: compromisso FUTURO. Campos: client_name, activity_type, task_title, activity_description, due_at (ISO 8601), priority (LOW|MEDIUM|HIGH|URGENT), location\n` +
-      `REGISTRAR_VENDA: negócio FECHADO. Campos: client_name, deal_value (número sem R$)\n` +
+      `REGISTRAR_VENDA: negócio FECHADO. Campos: client_name, deal_value (número inteiro sem R$)\n` +
+      `REGISTRAR_COMISSAO: registra comissão no financeiro. Campos: client_name, deal_value (valor bruto da venda), commission_percentage (número ex: 3 para 3%, 2.5 para 2,5%)\n` +
       `REGISTRAR_PERDA: negócio perdido. Campos: client_name, motivo\n` +
       `ADICIONAR_NOTA: observação sobre cliente. Campos: client_name, nota\n` +
       `AGENDAR_FOLLOWUP: próximo contato agendado. Campos: client_name, due_at, activity_title\n` +
       `ATUALIZAR_CLIENTE: atualizar dados do cliente. Campos: client_name, client_phone, client_email, temperatura (frio|morno|quente)\n` +
       `CONVERSAR: apenas conversa, sem ação no CRM. Campos: nenhum extra\n\n` +
       `## EXEMPLOS\n` +
-      `"Fechei a venda com o João Alves por R$ 45 mil hoje" →\n` +
-      `{"resposta":"🎉 Incrível! Venda de R$ 45.000 com João Alves registrada!","acoes":[{"tipo":"REGISTRAR_VENDA","client_name":"João Alves","deal_value":45000}]}\n\n` +
+      `"Fechei venda com João Alves por R$ 45.000,00" →\n` +
+      `{"resposta":"🎉 Venda de R$ 45.000 com João Alves registrada!\\nQual a % da sua comissão nessa venda?","acoes":[{"tipo":"REGISTRAR_VENDA","client_name":"João Alves","deal_value":45000}]}\n\n` +
+      `"3%" (Felipe respondendo % da comissão após venda de R$ 45.000 com João Alves) →\n` +
+      `{"resposta":"💰 Comissão de 3% = R$ 1.350 registrada no financeiro!","acoes":[{"tipo":"REGISTRAR_COMISSAO","client_name":"João Alves","deal_value":45000,"commission_percentage":3}]}\n\n` +
+      `"2,5%" ou "2.5%" → commission_percentage: 2.5\n\n` +
       `## REGRAS\n` +
       `1. NUNCA invente dados — se faltam infos, use null e mencione na resposta o que está faltando\n` +
       `2. Uma mensagem pode gerar MÚLTIPLAS ações\n` +
@@ -806,9 +846,10 @@ async function paz(params: {
       `7. Retorne APENAS o JSON — sem texto fora do JSON\n` +
       `8. EXECUTE IMEDIATAMENTE — NUNCA peça confirmação antes de agir. Nunca diga "Você confirma?", "Posso prosseguir?", "Tem certeza?". Execute e confirme o resultado na resposta.\n` +
       `9. Se faltar algum dado, salve o básico e pergunte o restante DEPOIS de executar — nunca antes.\n` +
-      `10. Valores monetários: "300 mil" = 300000, "1.2 milhão" = 1200000, "50k" = 50000. deal_value sempre número inteiro.\n` +
+      `10. Valores monetários: "300 mil"=300000, "1.2 milhão"=1200000, "50k"=50000. Formato BR: "R$ 300.000,00"=300000, "R$ 10.000,00"=10000 (ponto=milhar, vírgula=decimal). deal_value sempre número inteiro sem casas decimais.\n` +
       `11. client_name deve ser APENAS o nome da pessoa — sem "lead", "o", "a", "contato" ou outros prefixos.\n` +
       `12. client_phone: remova +55, espaços e traços — só DDD + número (ex: "54991997074").\n` +
+      `13. Fluxo de venda: (1) Felipe informa a venda → retorne REGISTRAR_VENDA e pergunte a % de comissão na resposta. (2) Felipe responde a % → retorne REGISTRAR_COMISSAO com client_name e deal_value do contexto.\n` +
       contextoCrm + contextoDesconhecidos + historicoCliente;
 
     try {
