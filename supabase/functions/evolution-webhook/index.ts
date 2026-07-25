@@ -622,7 +622,8 @@ async function executarAcao(params: {
     if (ownerId) await registrarTimelineEdge(sb, ownerId, cliente.id, "negocio", "venda_concluida", `Venda concluída com ${cliente.nome}`, vgv > 0 ? `VGV: R$ ${vgv.toLocaleString("pt-BR")}` : undefined, { valor_negociado: vgv });
     const vgvStr = vgv > 0 ? `\n💰 VGV: R$ ${vgv.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "";
     const codStr = acao.property_code ? `\n🏠 Imóvel: ${acao.property_code}` : "";
-    return `🎉 *VENDA REGISTRADA!*\n\n*${cliente.nome}* → *Vendido ✅*${vgvStr}${codStr}\n\n_Qual o código do imóvel e a % da sua comissão?\nEx: "AP-1234 e 3%" ou só "3%" se não tiver código_`;
+    const primeiroNome = cliente.nome.split(" ")[0];
+    return `🎉 *VENDA REGISTRADA!*\n\n*${cliente.nome}* → *Vendido ✅*${vgvStr}${codStr}\n\n_Para lançar a comissão no financeiro, manda:_\n*paz comissão ${primeiroNome} 3%*\n_(substitua 3% pela sua % real)_`;
   }
 
   if (acao.tipo === "REGISTRAR_COMISSAO") {
@@ -736,6 +737,42 @@ async function executarComandoDireto(params: {
     const clientes = await buscarClientesAtivos(sb, ownerId);
     if (!clientes.length) return "📭 Nenhum cliente no CRM ainda.";
     return `📋 *Seus ${clientes.length} clientes:*\n` + clientes.map((c) => { const valor = c.valor_negociado ? ` — R$ ${c.valor_negociado.toLocaleString("pt-BR")}` : ""; return `• *${c.nome}* — ${CRM_LABELS[c.etapa_funil] ?? c.etapa_funil}${valor}`; }).join("\n");
+  }
+
+  // Comando direto de comissão: "paz comissão [nome] [%]" — sem depender de IA/contexto
+  const mComissao = msg.match(/^paz\s+comiss[aã]o\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*%/i);
+  if (mComissao) {
+    if (!ownerId) return "⚠️ Sessão não identificada.";
+    const nomeCliente = mComissao[1].trim();
+    const pct = parseFloat(mComissao[2].replace(",", "."));
+    const cliente = await buscarClientePorNome(sb, ownerId, nomeCliente);
+    if (!cliente) return `⚠️ Cliente "${nomeCliente}" não encontrado no CRM.`;
+    const vgv = cliente.valor_negociado ?? 0;
+    if (vgv === 0) return `⚠️ Valor de venda de ${cliente.nome} não encontrado. Registra a venda primeiro com o valor.`;
+    const grossValue = Math.round(vgv * 0.06);
+    const commissionValue = Math.round((vgv * pct) / 100);
+    try {
+      await sb.from("commissions").insert({
+        owner_id: ownerId,
+        client_id: cliente.id,
+        gross_value: grossValue,
+        commission_percentage: pct,
+        commission_value: commissionValue,
+        status: "prevista",
+        notes: `VGV: R$ ${vgv.toLocaleString("pt-BR")} | Registrado via PAZ`,
+      });
+    } catch (err) {
+      console.error("[PAZ] Erro ao inserir comissão direta:", err);
+      return "⚠️ Erro ao salvar comissão no financeiro. Tente novamente.";
+    }
+    return (
+      `💰 *Comissão registrada no financeiro!*\n\n` +
+      `📋 *${cliente.nome}*\n` +
+      `💵 VGV: R$ ${vgv.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}\n` +
+      `🏦 Corretagem bruta (6%): R$ ${grossValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}\n` +
+      `📊 Sua comissão (${pct}%): *R$ ${commissionValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}*\n` +
+      `📌 Status: Prevista ✅`
+    );
   }
 
   return null;
