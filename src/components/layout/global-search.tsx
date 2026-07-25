@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import {
   User,
-  LayoutKanban,
+  Kanban,
   Calendar,
   DollarSign,
   MessageCircle,
@@ -27,7 +27,7 @@ import { ETAPA_FUNIL_LABELS } from '@/features/clientes/constants';
 
 const NAVEGACAO = [
   { label: 'Clientes', to: '/clientes', icon: Users },
-  { label: 'Pipeline (Kanban)', to: '/kanban', icon: LayoutKanban },
+  { label: 'Pipeline (Kanban)', to: '/kanban', icon: Kanban },
   { label: 'Agenda', to: '/agenda', icon: Calendar },
   { label: 'Financeiro', to: '/financeiro', icon: DollarSign },
   { label: 'Comunicação', to: '/comunicacao', icon: MessageCircle },
@@ -59,7 +59,7 @@ export function GlobalSearch({ open, onOpenChange }: Props) {
   const { data } = useClientes(
     debouncedBusca.length >= 2
       ? { busca: debouncedBusca, porPagina: 8 }
-      : { porPagina: 5, ordenarPor: 'updated_at', ordem: 'desc' },
+      : { porPagina: 5, ordenarPor: 'created_at', ordem: 'desc' },
   );
 
   const clientes = data?.data ?? [];
