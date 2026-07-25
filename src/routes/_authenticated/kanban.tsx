@@ -37,7 +37,7 @@ const STATUS_OPCOES: { value: ClienteStatus; label: string }[] = [
 
 function KanbanPage() {
   const [busca, setBusca] = useState('');
-  const [statusFiltro, setStatusFiltro] = useState<ClienteStatus[]>(['ativo']);
+  const [statusFiltro, setStatusFiltro] = useState<ClienteStatus[]>(['ativo', 'ganho']);
 
   const filtros: ClienteFiltros = {
     busca: busca || undefined,
