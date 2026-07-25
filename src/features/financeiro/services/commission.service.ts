@@ -40,9 +40,16 @@ export const CommissionService = {
     const { data: userData } = await supabase.auth.getUser();
     const ownerId = userData.user?.id;
     if (!ownerId) throw new Error('Usuário não autenticado.');
+    const clean = {
+      ...payload,
+      expected_date: (payload.expected_date as string) || null,
+      received_date: (payload.received_date as string) || null,
+      property_code: (payload.property_code as string) || null,
+      notes: (payload.notes as string) || null,
+    };
     const { data, error } = await supabase
       .from(TABLE)
-      .insert({ ...payload, owner_id: ownerId } as never)
+      .insert({ ...clean, owner_id: ownerId } as never)
       .select('*, client:clients(id, nome)')
       .single();
     if (error) throw error;
@@ -54,9 +61,17 @@ export const CommissionService = {
   },
 
   async atualizar(id: string, payload: CommissionUpdate): Promise<Commission> {
+    // Campos de data e string nullable: string vazia → null para evitar erro no Postgres
+    const clean: CommissionUpdate = {
+      ...payload,
+      expected_date: (payload.expected_date as string) || null,
+      received_date: (payload.received_date as string) || null,
+      property_code: (payload.property_code as string) || null,
+      notes: (payload.notes as string) || null,
+    };
     const { data, error } = await supabase
       .from(TABLE)
-      .update(payload as never)
+      .update(clean as never)
       .eq('id', id)
       .select('*, client:clients(id, nome)')
       .single();

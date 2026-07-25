@@ -74,8 +74,8 @@ export function CommissionForm({ onSubmit, onCancel, isLoading, defaultValues }:
             <FormItem>
               <FormLabel>Cliente</FormLabel>
               <Select
-                value={field.value ?? ''}
-                onValueChange={(v) => field.onChange(v || null)}
+                value={field.value ?? '__none__'}
+                onValueChange={(v) => field.onChange(v === '__none__' ? null : v)}
               >
                 <FormControl>
                   <SelectTrigger>
@@ -83,7 +83,7 @@ export function CommissionForm({ onSubmit, onCancel, isLoading, defaultValues }:
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="">Nenhum cliente</SelectItem>
+                  <SelectItem value="__none__">— Nenhum cliente —</SelectItem>
                   {clientes.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.nome}
