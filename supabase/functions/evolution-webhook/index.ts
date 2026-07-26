@@ -595,7 +595,7 @@ async function executarAcao(params: {
   ownerId: string | null;
   evolutionConfig: EvolutionConfig;
   acao: AcaoIA;
-}): Promise<string> {
+}): Promise<string | null> {
   const { sb, ownerId, acao } = params;
 
   const resolverCliente = async () => {
@@ -1284,7 +1284,11 @@ Deno.serve(async (req) => {
         }
       }
     }
-    if (mensagemFinal) paz({ sb: supabase, mensagem: mensagemFinal, evolutionConfig, ownerId }).catch((err) => console.error("[WEBHOOK] Erro PAZ:", err));
+    if (mensagemFinal) {
+      const pazPromise = paz({ sb: supabase, mensagem: mensagemFinal, evolutionConfig, ownerId }).catch((err) => console.error("[WEBHOOK] Erro PAZ:", err));
+      // Keep the edge function alive until paz() finishes sending the WhatsApp response
+      try { (EdgeRuntime as unknown as { waitUntil: (p: Promise<unknown>) => void }).waitUntil(pazPromise); } catch { /* runtime sem suporte */ }
+    }
     return new Response("OK", { status: 200 });
   }
 
