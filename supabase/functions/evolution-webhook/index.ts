@@ -825,11 +825,8 @@ async function executarAcao(params: {
       const gcId = await sincronizarGoogleCalendar(sb, ownerId, titulo, scheduledAt, duracao, acao.activity_description ?? undefined, acao.location ?? undefined);
       if (gcId) await sb.from("activities").update({ metadata: { source: "paz", google_calendar_event_id: gcId } }).eq("id", act.id);
     }
-    const dataStr = `*${new Date(scheduledAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}*`;
-    const localStr = acao.location ? `\n📍 ${acao.location}` : "";
-    const clienteStr = clienteNome ? `\n👤 ${clienteNome}` : "";
-    const gcStr = ownerId ? "\n📆 _Adicionado ao Google Calendar_" : "";
-    return `${isVisita ? "🏠" : "🤝"} *${isVisita ? "Visita" : "Reunião"} agendada!*\n📅 ${dataStr}${clienteStr}${localStr}${gcStr}`;
+    // Ação executada silenciosamente — AI já confirmou na resposta principal
+    return null;
   }
 
   if (acao.tipo === "ADICIONAR_LEMBRETE") {
@@ -843,14 +840,12 @@ async function executarAcao(params: {
       scheduled_at: scheduledAt, due_at: scheduledAt,
       duration_minutes: 15, metadata: { source: "paz" },
     }).select("id").single();
-    // Sincroniza com Google Calendar
     if (ownerId && act) {
       const gcId = await sincronizarGoogleCalendar(sb, ownerId, titulo, scheduledAt, 15, acao.activity_description ?? undefined);
       if (gcId) await sb.from("activities").update({ metadata: { source: "paz", google_calendar_event_id: gcId } }).eq("id", act.id);
     }
-    const dataStr = `*${new Date(scheduledAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}*`;
-    const gcStr = ownerId ? "\n📆 _Adicionado ao Google Calendar_" : "";
-    return `🔔 *Lembrete criado!*\n📌 ${titulo}\n📅 ${dataStr}${gcStr}`;
+    // Ação executada silenciosamente — AI já confirmou na resposta principal
+    return null;
   }
 
   return "";
@@ -1155,7 +1150,7 @@ async function paz(params: {
       `## REGRAS\n` +
       `1. NUNCA invente dados — se faltam infos obrigatórias, use null e mencione na resposta. Para AGENDAR_VISITA e AGENDAR_REUNIAO, client_name é OPCIONAL — execute sem cliente se não for mencionado\n` +
       `2. Uma mensagem pode gerar MÚLTIPLAS ações\n` +
-      `3. Datas/horas sempre em ISO 8601 baseadas em: ${dataAtual}\n` +
+      `3. Datas/horas SEMPRE em ISO 8601 com offset BRT obrigatório -03:00. Ex: 2026-09-27T08:00:00-03:00. Data atual: ${dataAtual}\n` +
       `4. "Amanhã" = ${new Date(Date.now() + 86400000).toISOString().slice(0, 10)}, "semana que vem" = ${new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)}\n` +
       `5. Telefones: apenas dígitos com DDD (sem +55 ou espaços)\n` +
       `6. Se Felipe apenas conversa (perguntas, estratégias), use tipo CONVERSAR com acoes=[]\n` +
