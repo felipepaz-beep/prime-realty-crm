@@ -914,20 +914,20 @@ async function executarComandoDireto(params: {
     );
   }
 
-  // Comando direto: "paz visita [nome] [data] [hora]"
-  // Ex: "paz visita João Silva amanhã 10h" | "paz visita João Silva 25/07 14:30"
+  // Comando direto: "paz visita [nome opcional] [data] [hora]"
+  // Ex: "paz visita João Silva amanhã 10h" | "paz visita 25/07 14:30" | "paz visita João Silva 25/07 14:30"
   const mVisita = msg.match(
-    /^paz\s+visita\s+(.+?)\s+(hoje|amanh[aã]|segunda(?:-feira)?|ter[cç]a(?:-feira)?|quarta(?:-feira)?|quinta(?:-feira)?|sexta(?:-feira)?|s[aá]bado|domingo|\d{1,2}\/\d{1,2}(?:\/\d{4})?)\s+(\d{1,2}[:h]\d{0,2}h?)/i,
+    /^paz\s+visita(?:\s+(.+?))?\s+(hoje|amanh[aã]|segunda(?:-feira)?|ter[cç]a(?:-feira)?|quarta(?:-feira)?|quinta(?:-feira)?|sexta(?:-feira)?|s[aá]bado|domingo|\d{1,2}\/\d{1,2}(?:\/\d{0,4})?)\s+(\d{1,2}[:h]\d{0,2}h?)/i,
   );
   if (mVisita) {
     if (!ownerId) return "⚠️ Sessão não identificada.";
-    const nomeCliente = mVisita[1].trim();
+    const nomeCliente = mVisita[1]?.trim() ?? null;
     const dateStr = mVisita[2].trim();
     const timeStr = mVisita[3].trim();
     const scheduledAt = parseDateTimePAZ(dateStr, timeStr);
     if (!scheduledAt) return "⚠️ Data/hora inválida. Tente: paz visita João 25/07 10h";
-    const cliente = await buscarClientePorNome(sb, ownerId, nomeCliente);
-    const titulo = `Visita${cliente ? ` — ${cliente.nome}` : ` — ${nomeCliente}`}`;
+    const cliente = nomeCliente ? await buscarClientePorNome(sb, ownerId, nomeCliente) : null;
+    const titulo = `Visita${cliente ? ` — ${cliente.nome}` : nomeCliente ? ` — ${nomeCliente}` : ""}`;
     const { data: act } = await sb.from("activities").insert({
       owner_id: ownerId, client_id: cliente?.id ?? null, type: "VISIT", title: titulo,
       status: "PENDING", priority: "MEDIUM", scheduled_at: scheduledAt,
@@ -940,7 +940,36 @@ async function executarComandoDireto(params: {
     })();
     if (cliente && ownerId) await registrarTimelineEdge(sb, ownerId, cliente.id, "comunicacao", "visita_agendada", titulo, undefined, { scheduled_at: scheduledAt });
     const dataFmt = new Date(scheduledAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
-    return `🏠 *Visita agendada!*\n📅 *${dataFmt}*\n👤 ${cliente?.nome ?? nomeCliente}${gcStr}`;
+    return `🏠 *Visita agendada!*\n📅 *${dataFmt}*\n👤 ${cliente?.nome ?? nomeCliente ?? "Sem cliente"}${gcStr}`;
+  }
+
+  // Comando direto: "paz reunião [cliente opcional] [data] [hora]"
+  // Ex: "paz reunião amanhã 10h" | "paz reunião João Silva 25/07 14:30"
+  const mReuniao = msg.match(
+    /^paz\s+reuni[aã]o(?:\s+(.+?))?\s+(hoje|amanh[aã]|segunda(?:-feira)?|ter[cç]a(?:-feira)?|quarta(?:-feira)?|quinta(?:-feira)?|sexta(?:-feira)?|s[aá]bado|domingo|\d{1,2}\/\d{1,2}(?:\/\d{0,4})?)\s+(\d{1,2}[:h]\d{0,2}h?)/i,
+  );
+  if (mReuniao) {
+    if (!ownerId) return "⚠️ Sessão não identificada.";
+    const nomeCliente = mReuniao[1]?.trim() ?? null;
+    const dateStr = mReuniao[2].trim();
+    const timeStr = mReuniao[3].trim();
+    const scheduledAt = parseDateTimePAZ(dateStr, timeStr);
+    if (!scheduledAt) return "⚠️ Data/hora inválida. Tente: paz reunião 25/07 10h";
+    const cliente = nomeCliente ? await buscarClientePorNome(sb, ownerId, nomeCliente) : null;
+    const titulo = `Reunião${cliente ? ` — ${cliente.nome}` : nomeCliente ? ` — ${nomeCliente}` : ""}`;
+    const { data: act } = await sb.from("activities").insert({
+      owner_id: ownerId, client_id: cliente?.id ?? null, type: "MEETING", title: titulo,
+      status: "PENDING", priority: "MEDIUM", scheduled_at: scheduledAt,
+      due_at: scheduledAt, duration_minutes: 60, metadata: { source: "paz" },
+    }).select("id").single();
+    const gcStr = await (async () => {
+      const gcId = await sincronizarGoogleCalendar(sb, ownerId, titulo, scheduledAt, 60);
+      if (gcId && act) { await sb.from("activities").update({ metadata: { source: "paz", google_calendar_event_id: gcId } }).eq("id", act.id); return "\n📆 _Adicionado ao Google Calendar_"; }
+      return "";
+    })();
+    if (cliente && ownerId) await registrarTimelineEdge(sb, ownerId, cliente.id, "comunicacao", "reuniao_agendada", titulo, undefined, { scheduled_at: scheduledAt });
+    const dataFmt = new Date(scheduledAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
+    return `📅 *Reunião agendada!*\n📅 *${dataFmt}*\n👤 ${cliente?.nome ?? nomeCliente ?? "Sem cliente"}${gcStr}`;
   }
 
   // Comando direto: "paz lembrete [texto] [data] [hora]"
@@ -1107,9 +1136,9 @@ async function paz(params: {
       `MOVER_CRM: mudar etapa do funil. Campos: client_name, etapa (novo_lead|contato_iniciado|qualificacao|visita_agendada|proposta|negociacao|fechado_ganho|fechado_perdido)\n` +
       `REGISTRAR_ATIVIDADE: atividade JÁ REALIZADA. Campos: client_name, activity_type (CALL|MEETING|VISIT|EMAIL), activity_title, activity_outcome, scheduled_at, completed_at\n` +
       `CRIAR_TAREFA: tarefa/compromisso FUTURO genérico. Campos: client_name, activity_type, task_title, activity_description, due_at (ISO 8601), priority (LOW|MEDIUM|HIGH|URGENT), location\n` +
-      `AGENDAR_VISITA: agendar visita a imóvel ou ao cliente. Campos: client_name, scheduled_at (ISO 8601 com horário), location, activity_description, duration_minutes (padrão 60)\n` +
-      `AGENDAR_REUNIAO: agendar reunião com cliente ou equipe. Campos: client_name, scheduled_at (ISO 8601 com horário), location, activity_description, duration_minutes (padrão 60)\n` +
-      `ADICIONAR_LEMBRETE: lembrete pessoal sem cliente. Campos: titulo, scheduled_at (ISO 8601 com horário), activity_description\n` +
+      `AGENDAR_VISITA: agendar visita a imóvel ou propriedade. client_name é OPCIONAL — agende sem cliente se não mencionar um. Campos: client_name (opcional), scheduled_at (ISO 8601 com horário), location (opcional), activity_description (opcional), duration_minutes (padrão 60)\n` +
+      `AGENDAR_REUNIAO: agendar reunião, encontro ou compromisso. client_name é OPCIONAL — agende sem cliente se não mencionar um. Campos: client_name (opcional), titulo (opcional), scheduled_at (ISO 8601 com horário), location (opcional), activity_description (opcional), duration_minutes (padrão 60)\n` +
+      `ADICIONAR_LEMBRETE: lembrete ou tarefa pessoal, sem cliente. Campos: titulo, scheduled_at (ISO 8601 com horário), activity_description (opcional)\n` +
       `REGISTRAR_VENDA: negócio FECHADO. Campos: client_name, deal_value (VGV = valor da venda, inteiro), property_code (código do imóvel se mencionado, senão omita)\n` +
       `REGISTRAR_COMISSAO: registra comissão no financeiro. Campos: client_name, deal_value (VGV da venda), commission_percentage (% DE FELIPE SOBRE O VGV, ex: 3 para 3%, 2.5 para 2,5%), property_code (código do imóvel se informado)\n` +
       `REGISTRAR_PERDA: negócio perdido. Campos: client_name, motivo\n` +
@@ -1124,7 +1153,7 @@ async function paz(params: {
       `{"resposta":"💰 Comissão de 3% = R$ 1.350 registrada no financeiro!","acoes":[{"tipo":"REGISTRAR_COMISSAO","client_name":"João Alves","deal_value":45000,"commission_percentage":3,"property_code":"AP-1234"}]}\n\n` +
       `"2,5%" ou "2.5%" → commission_percentage: 2.5\n\n` +
       `## REGRAS\n` +
-      `1. NUNCA invente dados — se faltam infos, use null e mencione na resposta o que está faltando\n` +
+      `1. NUNCA invente dados — se faltam infos obrigatórias, use null e mencione na resposta. Para AGENDAR_VISITA e AGENDAR_REUNIAO, client_name é OPCIONAL — execute sem cliente se não for mencionado\n` +
       `2. Uma mensagem pode gerar MÚLTIPLAS ações\n` +
       `3. Datas/horas sempre em ISO 8601 baseadas em: ${dataAtual}\n` +
       `4. "Amanhã" = ${new Date(Date.now() + 86400000).toISOString().slice(0, 10)}, "semana que vem" = ${new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)}\n` +
