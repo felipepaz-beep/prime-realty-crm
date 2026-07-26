@@ -1,5 +1,5 @@
 // Google Calendar OAuth 2.0 flow for Prime Realty CRM.
-// Supabase secrets required: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, APP_URL
+// Supabase secrets required: GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, APP_URL
 //
 // Redirect URI to register in Google Cloud Console:
 //   https://<your-project>.supabase.co/functions/v1/google-calendar-oauth
@@ -13,8 +13,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID") ?? "";
-const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET") ?? "";
+const GOOGLE_CLIENT_ID =
+  Deno.env.get("GOOGLE_CLIENT_ID") ?? Deno.env.get("GOOGLE_OAUTH_CLIENT_ID") ?? "";
+const GOOGLE_CLIENT_SECRET =
+  Deno.env.get("GOOGLE_CLIENT_SECRET") ?? Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET") ?? "";
 const APP_URL = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
 
 // The redirect_uri registered in Google Cloud Console must match this exactly.

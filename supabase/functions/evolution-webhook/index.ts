@@ -320,8 +320,12 @@ async function sincronizarGoogleCalendar(
       body: new URLSearchParams({
         grant_type: "refresh_token",
         refresh_token: refreshToken,
-        client_id: Deno.env.get("GOOGLE_CLIENT_ID") ?? "",
-        client_secret: Deno.env.get("GOOGLE_CLIENT_SECRET") ?? "",
+        client_id:
+          Deno.env.get("GOOGLE_CLIENT_ID") ?? Deno.env.get("GOOGLE_OAUTH_CLIENT_ID") ?? "",
+        client_secret:
+          Deno.env.get("GOOGLE_CLIENT_SECRET") ??
+          Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET") ??
+          "",
       }),
     });
     if (!tokenRes.ok) return null;
