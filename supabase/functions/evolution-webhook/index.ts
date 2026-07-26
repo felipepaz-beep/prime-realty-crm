@@ -936,7 +936,8 @@ async function executarComandoDireto(params: {
     })();
     if (cliente && ownerId) await registrarTimelineEdge(sb, ownerId, cliente.id, "comunicacao", "visita_agendada", tituloBase, descricao ?? undefined, { scheduled_at: scheduledAt });
     const dataFmt = new Date(scheduledAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
-    const clienteStr = cliente?.nome ?? nomeCliente ? `\n👤 ${cliente?.nome ?? nomeCliente}` : "";
+    const clienteNomeReal = cliente?.nome ?? nomeCliente ?? null;
+    const clienteStr = clienteNomeReal ? `\n👤 ${clienteNomeReal}` : "";
     const descStr = descricao ? `\n📝 ${descricao}` : "";
     return `🏠 *Visita agendada!*\n🗓 *${dataFmt}*${clienteStr}${descStr}${gcStr}`;
   }
@@ -968,7 +969,8 @@ async function executarComandoDireto(params: {
     })();
     if (cliente && ownerId) await registrarTimelineEdge(sb, ownerId, cliente.id, "comunicacao", "reuniao_agendada", tituloBase, descricao ?? undefined, { scheduled_at: scheduledAt });
     const dataFmt = new Date(scheduledAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
-    const clienteStr = cliente?.nome ?? nomeCliente ? `\n👤 ${cliente?.nome ?? nomeCliente}` : "";
+    const clienteNomeReal = cliente?.nome ?? (nomeCliente && !descricao ? nomeCliente : null);
+    const clienteStr = clienteNomeReal ? `\n👤 ${clienteNomeReal}` : "";
     return `📅 *Reunião agendada!*\n📌 ${tituloBase}\n🗓 *${dataFmt}*${clienteStr}${gcStr}`;
   }
 
@@ -1040,9 +1042,13 @@ function parseDateTimePAZ(dateStr: string, timeStr: string): string | null {
   const hours = parseInt(parts[0]);
   const minutes = parts[1] ? parseInt(parts[1]) || 0 : 0;
   if (isNaN(hours) || hours < 0 || hours > 23) return null;
-  date.setHours(hours, minutes, 0, 0);
 
-  return date.toISOString();
+  // Build ISO string with BRT offset to avoid UTC conversion losing 3h
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const y = date.getFullYear();
+  const mo = pad(date.getMonth() + 1);
+  const d = pad(date.getDate());
+  return `${y}-${mo}-${d}T${pad(hours)}:${pad(minutes)}:00-03:00`;
 }
 
 // ─── PAZ: assistente de vendas ────────────────────────────────────────────────
