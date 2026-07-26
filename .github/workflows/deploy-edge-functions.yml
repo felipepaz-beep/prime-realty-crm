@@ -17,7 +17,16 @@ jobs:
         with:
           version: latest
 
-      - name: Deploy evolution-webhook
+      # evolution-webhook: deploy to BOTH projects so whichever URL the webhook hits gets the latest code
+      - name: Deploy evolution-webhook (ghgcnmzrsahfkgotiyuj)
+        run: |
+          supabase functions deploy evolution-webhook \
+            --project-ref ghgcnmzrsahfkgotiyuj \
+            --no-verify-jwt
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Deploy evolution-webhook (btotxxumzkusjjiwwtxh)
         run: |
           supabase functions deploy evolution-webhook \
             --project-ref btotxxumzkusjjiwwtxh \
@@ -25,10 +34,11 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
+      # google-calendar functions live on the Lovable project (ghgcnmzrsahfkgotiyuj)
       - name: Deploy google-calendar-oauth
         run: |
           supabase functions deploy google-calendar-oauth \
-            --project-ref btotxxumzkusjjiwwtxh \
+            --project-ref ghgcnmzrsahfkgotiyuj \
             --no-verify-jwt
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -36,7 +46,7 @@ jobs:
       - name: Deploy google-calendar-sync
         run: |
           supabase functions deploy google-calendar-sync \
-            --project-ref btotxxumzkusjjiwwtxh \
+            --project-ref ghgcnmzrsahfkgotiyuj \
             --no-verify-jwt
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

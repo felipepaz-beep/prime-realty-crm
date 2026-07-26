@@ -549,6 +549,14 @@ async function buscarContatoNasConversas(
   return null;
 }
 
+// ─── Normaliza data gerada pela IA: se vier em UTC (Z) trata como horário BRT ──
+// A IA às vezes gera "T10:00:00Z" quando quer dizer "10:00 BRT" — substituímos Z por -03:00
+function normalizarDataIA(dt: string | null | undefined): string | null {
+  if (!dt) return null;
+  if (dt.endsWith("Z")) return dt.slice(0, -1) + "-03:00";
+  return dt;
+}
+
 // ─── Parse da resposta da IA ──────────────────────────────────────────────────
 
 function parsearRespostaIA(resposta: string): { texto: string; acoes: AcaoIA[] } {
@@ -646,8 +654,8 @@ async function executarAcao(params: {
       owner_id: ownerId, client_id: cliente.id, type: tipo, title: titulo,
       description: acao.activity_description ?? null, status: "COMPLETED",
       priority: (acao.priority ?? "MEDIUM").toUpperCase(),
-      scheduled_at: acao.scheduled_at ?? acao.completed_at ?? agora,
-      completed_at: acao.completed_at ?? agora, location: acao.location ?? null,
+      scheduled_at: normalizarDataIA(acao.scheduled_at) ?? normalizarDataIA(acao.completed_at) ?? agora,
+      completed_at: normalizarDataIA(acao.completed_at) ?? agora, location: acao.location ?? null,
       metadata: { outcome: acao.activity_outcome ?? null, source: "paz" },
     }).select("id").single();
     if (actErr || !act) return `⚠️ Erro ao registrar atividade: ${actErr?.message ?? "?"}`;
@@ -660,7 +668,7 @@ async function executarAcao(params: {
   if (acao.tipo === "CRIAR_TAREFA") {
     const tipo = (acao.activity_type ?? "TASK").toUpperCase();
     const titulo = acao.task_title ?? acao.activity_title ?? `${ACTIVITY_TYPE_LABELS[tipo] ?? tipo}`;
-    const dueAt = acao.due_at ?? acao.scheduled_at ?? null;
+    const dueAt = normalizarDataIA(acao.due_at) ?? normalizarDataIA(acao.scheduled_at) ?? null;
     let clienteId: string | null = null;
     let clienteNome = "sem cliente";
     if (acao.client_name) {
@@ -767,7 +775,7 @@ async function executarAcao(params: {
     if (!nome) return "⚠️ Com quem é o follow-up?";
     const cliente = await resolverCliente();
     if (!cliente) return `⚠️ Cliente "${nome}" não encontrado.`;
-    const dataFollowup = acao.due_at ?? acao.scheduled_at ?? null;
+    const dataFollowup = normalizarDataIA(acao.due_at) ?? normalizarDataIA(acao.scheduled_at) ?? null;
     if (dataFollowup) await sb.from("clients").update({ proximo_followup: dataFollowup }).eq("id", cliente.id);
     const tituloFollowup = acao.activity_title ?? `Follow-up com ${cliente.nome}`;
     const { data: followupAct } = await sb.from("activities").insert({ owner_id: ownerId, client_id: cliente.id, type: "FOLLOWUP", title: tituloFollowup, description: acao.activity_description ?? null, status: "PENDING", priority: (acao.priority ?? "MEDIUM").toUpperCase(), scheduled_at: dataFollowup, due_at: dataFollowup, metadata: { source: "paz" } }).select("id").single();
@@ -798,7 +806,7 @@ async function executarAcao(params: {
 
   if (acao.tipo === "AGENDAR_VISITA" || acao.tipo === "AGENDAR_REUNIAO") {
     const isVisita = acao.tipo === "AGENDAR_VISITA";
-    const scheduledAt = acao.scheduled_at ?? acao.due_at ?? null;
+    const scheduledAt = normalizarDataIA(acao.scheduled_at) ?? normalizarDataIA(acao.due_at) ?? null;
     if (!scheduledAt) return "⚠️ Preciso da data e hora para agendar.";
     let clienteId: string | null = null;
     let clienteNome = "";
@@ -831,7 +839,7 @@ async function executarAcao(params: {
 
   if (acao.tipo === "ADICIONAR_LEMBRETE") {
     const titulo = acao.titulo ?? acao.task_title ?? acao.activity_title ?? "Lembrete";
-    const scheduledAt = acao.scheduled_at ?? acao.due_at ?? null;
+    const scheduledAt = normalizarDataIA(acao.scheduled_at) ?? normalizarDataIA(acao.due_at) ?? null;
     if (!scheduledAt) return "⚠️ Preciso da data e hora para criar o lembrete.";
     const { data: act } = await sb.from("activities").insert({
       owner_id: ownerId, client_id: null, type: "PERSONAL", title: titulo,
