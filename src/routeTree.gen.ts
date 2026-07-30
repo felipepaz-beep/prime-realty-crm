@@ -20,6 +20,7 @@ import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedKanbanRouteImport } from './routes/_authenticated/kanban'
 import { Route as AuthenticatedInicioRouteImport } from './routes/_authenticated/inicio'
 import { Route as AuthenticatedIaRouteImport } from './routes/_authenticated/ia'
+import { Route as AuthenticatedFollowupRouteImport } from './routes/_authenticated/followup'
 import { Route as AuthenticatedFinanceiroRouteImport } from './routes/_authenticated/financeiro'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
@@ -81,6 +82,11 @@ const AuthenticatedIaRoute = AuthenticatedIaRouteImport.update({
   path: '/ia',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedFollowupRoute = AuthenticatedFollowupRouteImport.update({
+  id: '/followup',
+  path: '/followup',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedFinanceiroRoute = AuthenticatedFinanceiroRouteImport.update({
   id: '/financeiro',
   path: '/financeiro',
@@ -124,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/financeiro': typeof AuthenticatedFinanceiroRoute
+  '/followup': typeof AuthenticatedFollowupRoute
   '/ia': typeof AuthenticatedIaRoute
   '/inicio': typeof AuthenticatedInicioRoute
   '/kanban': typeof AuthenticatedKanbanRoute
@@ -142,6 +149,7 @@ export interface FileRoutesByTo {
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/financeiro': typeof AuthenticatedFinanceiroRoute
+  '/followup': typeof AuthenticatedFollowupRoute
   '/ia': typeof AuthenticatedIaRoute
   '/inicio': typeof AuthenticatedInicioRoute
   '/kanban': typeof AuthenticatedKanbanRoute
@@ -162,6 +170,7 @@ export interface FileRoutesById {
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/financeiro': typeof AuthenticatedFinanceiroRoute
+  '/_authenticated/followup': typeof AuthenticatedFollowupRoute
   '/_authenticated/ia': typeof AuthenticatedIaRoute
   '/_authenticated/inicio': typeof AuthenticatedInicioRoute
   '/_authenticated/kanban': typeof AuthenticatedKanbanRoute
@@ -182,6 +191,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/financeiro'
+    | '/followup'
     | '/ia'
     | '/inicio'
     | '/kanban'
@@ -200,6 +210,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/financeiro'
+    | '/followup'
     | '/ia'
     | '/inicio'
     | '/kanban'
@@ -219,6 +230,7 @@ export interface FileRouteTypes {
     | '/_authenticated/configuracoes'
     | '/_authenticated/dashboard'
     | '/_authenticated/financeiro'
+    | '/_authenticated/followup'
     | '/_authenticated/ia'
     | '/_authenticated/inicio'
     | '/_authenticated/kanban'
@@ -316,6 +328,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/followup': {
+      id: '/_authenticated/followup'
+      path: '/followup'
+      fullPath: '/followup'
+      preLoaderRoute: typeof AuthenticatedFollowupRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/financeiro': {
       id: '/_authenticated/financeiro'
       path: '/financeiro'
@@ -366,6 +385,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFinanceiroRoute: typeof AuthenticatedFinanceiroRoute
+  AuthenticatedFollowupRoute: typeof AuthenticatedFollowupRoute
   AuthenticatedIaRoute: typeof AuthenticatedIaRoute
   AuthenticatedInicioRoute: typeof AuthenticatedInicioRoute
   AuthenticatedKanbanRoute: typeof AuthenticatedKanbanRoute
@@ -381,6 +401,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedFinanceiroRoute: AuthenticatedFinanceiroRoute,
+  AuthenticatedFollowupRoute: AuthenticatedFollowupRoute,
   AuthenticatedIaRoute: AuthenticatedIaRoute,
   AuthenticatedInicioRoute: AuthenticatedInicioRoute,
   AuthenticatedKanbanRoute: AuthenticatedKanbanRoute,
@@ -404,13 +425,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
