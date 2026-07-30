@@ -435,6 +435,7 @@ export type Database = {
           faixa_valor_max: number | null
           faixa_valor_min: number | null
           finalidade: string | null
+          followup_intervalo_dias: number
           forma_pagamento: string | null
           id: string
           is_active: boolean
@@ -473,6 +474,7 @@ export type Database = {
           faixa_valor_max?: number | null
           faixa_valor_min?: number | null
           finalidade?: string | null
+          followup_intervalo_dias?: number
           forma_pagamento?: string | null
           id?: string
           is_active?: boolean
@@ -511,6 +513,7 @@ export type Database = {
           faixa_valor_max?: number | null
           faixa_valor_min?: number | null
           finalidade?: string | null
+          followup_intervalo_dias?: number
           forma_pagamento?: string | null
           id?: string
           is_active?: boolean
