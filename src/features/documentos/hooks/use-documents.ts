@@ -1,11 +1,19 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { atualizarDocumento, downloadDocumento, listarDocumentos, removerDocumento, restaurarDocumento, toggleFavorito } from '../services/document.service';
-import type { ClientDocument, DocumentFiltros, DocumentUpdate } from '../types';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  atualizarDocumento,
+  downloadDocumento,
+  listarDocumentos,
+  removerDocumento,
+  restaurarDocumento,
+  toggleFavorito,
+} from "../services/document.service";
+import type { ClientDocument, DocumentFiltros, DocumentUpdate } from "../types";
 
 export const documentosKeys = {
-  all: ['documentos'] as const,
-  lists: () => [...documentosKeys.all, 'list'] as const,
-  list: (clientId: string, filtros: DocumentFiltros) => [...documentosKeys.lists(), clientId, filtros] as const,
+  all: ["documentos"] as const,
+  lists: () => [...documentosKeys.all, "list"] as const,
+  list: (clientId: string, filtros: DocumentFiltros) =>
+    [...documentosKeys.lists(), clientId, filtros] as const,
 };
 
 export function useDocumentos(clientId: string, filtros: DocumentFiltros = {}) {
@@ -25,7 +33,8 @@ function useInvalidate(clientId: string) {
 export function useAtualizarDocumento(clientId: string) {
   const invalidate = useInvalidate(clientId);
   return useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: DocumentUpdate }) => atualizarDocumento(id, payload),
+    mutationFn: ({ id, payload }: { id: string; payload: DocumentUpdate }) =>
+      atualizarDocumento(id, payload),
     onSuccess: invalidate,
   });
 }
@@ -33,7 +42,8 @@ export function useAtualizarDocumento(clientId: string) {
 export function useToggleFavorito(clientId: string) {
   const invalidate = useInvalidate(clientId);
   return useMutation({
-    mutationFn: ({ id, favorite }: { id: string; favorite: boolean }) => toggleFavorito(id, favorite),
+    mutationFn: ({ id, favorite }: { id: string; favorite: boolean }) =>
+      toggleFavorito(id, favorite),
     onSuccess: invalidate,
   });
 }

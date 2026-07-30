@@ -1,12 +1,12 @@
-import { useState, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { useState, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
-import { supabase } from '@/integrations/supabase/client';
-import { TimelineService } from '../services/timeline.service';
-import { ETAPA_FUNIL_ORDEM } from '../constants';
-import type { Cliente, ClienteEtapaFunil } from '../types';
-import { clientesKeys } from './use-clientes';
+import { supabase } from "@/integrations/supabase/client";
+import { TimelineService } from "../services/timeline.service";
+import { ETAPA_FUNIL_ORDEM } from "../constants";
+import type { Cliente, ClienteEtapaFunil } from "../types";
+import { clientesKeys } from "./use-clientes";
 
 export type KanbanColuna = {
   etapa: ClienteEtapaFunil;
@@ -46,23 +46,23 @@ export function useKanban(clientesOriginais: Cliente[]) {
 
       // Atualização otimista imediata
       setClientesLocais((prev) =>
-        prev.map((c) => (c.id === clienteId ? { ...c, etapa_funil: novaEtapa } : c))
+        prev.map((c) => (c.id === clienteId ? { ...c, etapa_funil: novaEtapa } : c)),
       );
 
       // Persiste no banco
       const { error } = await supabase
-        .from('clients')
+        .from("clients")
         .update({ etapa_funil: novaEtapa })
-        .eq('id', clienteId);
+        .eq("id", clienteId);
 
       if (error) {
         // Rollback
         setClientesLocais((prev) =>
           prev.map((c) =>
-            c.id === clienteId ? { ...c, etapa_funil: clienteAtual.etapa_funil } : c
-          )
+            c.id === clienteId ? { ...c, etapa_funil: clienteAtual.etapa_funil } : c,
+          ),
         );
-        toast.error('Erro ao mover cliente. Tente novamente.');
+        toast.error("Erro ao mover cliente. Tente novamente.");
         return;
       }
 
@@ -72,7 +72,7 @@ export function useKanban(clientesOriginais: Cliente[]) {
       // Invalida cache do React Query para manter listagem consistente
       qc.invalidateQueries({ queryKey: clientesKeys.lists() });
     },
-    [clientesLocais, qc]
+    [clientesLocais, qc],
   );
 
   return { colunas, moverCliente, sincronizar };

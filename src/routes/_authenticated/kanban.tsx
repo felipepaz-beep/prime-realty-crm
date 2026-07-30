@@ -1,10 +1,10 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useState, useCallback } from 'react';
-import { Search, SlidersHorizontal } from 'lucide-react';
+import { createFileRoute } from "@tanstack/react-router";
+import { useState, useCallback } from "react";
+import { Search, SlidersHorizontal } from "lucide-react";
 
-import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,39 +12,36 @@ import {
   DropdownMenuSeparator,
   DropdownMenuCheckboxItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+} from "@/components/ui/dropdown-menu";
 
-import { useClientes } from '@/features/clientes/hooks/use-clientes';
-import { KanbanBoard } from '@/features/clientes/components/kanban-board';
-import type { ClienteFiltros, ClienteStatus } from '@/features/clientes/types';
+import { useClientes } from "@/features/clientes/hooks/use-clientes";
+import { KanbanBoard } from "@/features/clientes/components/kanban-board";
+import type { ClienteFiltros, ClienteStatus } from "@/features/clientes/types";
 
-export const Route = createFileRoute('/_authenticated/kanban')({
+export const Route = createFileRoute("/_authenticated/kanban")({
   head: () => ({
-    meta: [
-      { title: 'Kanban — Corretor CRM' },
-      { name: 'robots', content: 'noindex' },
-    ],
+    meta: [{ title: "Kanban — Corretor CRM" }, { name: "robots", content: "noindex" }],
   }),
   component: KanbanPage,
 });
 
 const STATUS_OPCOES: { value: ClienteStatus; label: string }[] = [
-  { value: 'ativo', label: 'Ativo' },
-  { value: 'inativo', label: 'Inativo' },
-  { value: 'ganho', label: 'Ganho' },
-  { value: 'perdido', label: 'Perdido' },
+  { value: "ativo", label: "Ativo" },
+  { value: "inativo", label: "Inativo" },
+  { value: "ganho", label: "Ganho" },
+  { value: "perdido", label: "Perdido" },
 ];
 
 function KanbanPage() {
-  const [busca, setBusca] = useState('');
-  const [statusFiltro, setStatusFiltro] = useState<ClienteStatus[]>(['ativo', 'ganho']);
+  const [busca, setBusca] = useState("");
+  const [statusFiltro, setStatusFiltro] = useState<ClienteStatus[]>(["ativo", "ganho"]);
 
   const filtros: ClienteFiltros = {
     busca: busca || undefined,
     status: statusFiltro.length > 0 ? statusFiltro : undefined,
     porPagina: 200, // kanban precisa de todos os clientes de uma vez
-    ordem: 'asc',
-    ordenarPor: 'nome',
+    ordem: "asc",
+    ordenarPor: "nome",
   };
 
   const { data, isLoading, isError } = useClientes(filtros);
@@ -52,7 +49,7 @@ function KanbanPage() {
 
   const toggleStatus = useCallback((status: ClienteStatus) => {
     setStatusFiltro((prev) =>
-      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
+      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status],
     );
   }, []);
 
@@ -67,7 +64,7 @@ function KanbanPage() {
         <div>
           <h1 className="text-lg font-semibold">Pipeline</h1>
           <p className="text-sm text-muted-foreground">
-            {isLoading ? '...' : `${clientes.length} cliente${clientes.length !== 1 ? 's' : ''}`}
+            {isLoading ? "..." : `${clientes.length} cliente${clientes.length !== 1 ? "s" : ""}`}
           </p>
         </div>
 

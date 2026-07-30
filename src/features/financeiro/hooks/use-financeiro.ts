@@ -1,20 +1,16 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
-import { CommissionService } from '../services/commission.service';
-import { GoalService } from '../services/goal.service';
-import type {
-  CommissionFiltros,
-  CommissionInsert,
-  CommissionUpdate,
-} from '../types';
-import type { GoalFormValues } from '../schemas';
+import { CommissionService } from "../services/commission.service";
+import { GoalService } from "../services/goal.service";
+import type { CommissionFiltros, CommissionInsert, CommissionUpdate } from "../types";
+import type { GoalFormValues } from "../schemas";
 
 const K = {
-  resumo: ['financeiro', 'resumo'] as const,
-  fluxo: ['financeiro', 'fluxo'] as const,
-  commissions: (f: CommissionFiltros) => ['financeiro', 'commissions', f] as const,
-  goal: (month: number, year: number) => ['financeiro', 'goal', month, year] as const,
+  resumo: ["financeiro", "resumo"] as const,
+  fluxo: ["financeiro", "fluxo"] as const,
+  commissions: (f: CommissionFiltros) => ["financeiro", "commissions", f] as const,
+  goal: (month: number, year: number) => ["financeiro", "goal", month, year] as const,
 };
 
 export function useFinanceiroResumo() {
@@ -33,18 +29,18 @@ export function useCommissions(filtros: CommissionFiltros = {}) {
 }
 
 function invalidarTudo(qc: ReturnType<typeof useQueryClient>) {
-  qc.invalidateQueries({ queryKey: ['financeiro'] });
+  qc.invalidateQueries({ queryKey: ["financeiro"] });
 }
 
 export function useCriarComissao() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: Omit<CommissionInsert, 'owner_id'>) => CommissionService.criar(payload),
+    mutationFn: (payload: Omit<CommissionInsert, "owner_id">) => CommissionService.criar(payload),
     onSuccess: () => {
       invalidarTudo(qc);
-      toast.success('Comissão criada');
+      toast.success("Comissão criada");
     },
-    onError: (e: Error) => toast.error(e.message ?? 'Erro ao criar comissão'),
+    onError: (e: Error) => toast.error(e.message ?? "Erro ao criar comissão"),
   });
 }
 
@@ -55,9 +51,9 @@ export function useAtualizarComissao() {
       CommissionService.atualizar(id, payload),
     onSuccess: () => {
       invalidarTudo(qc);
-      toast.success('Comissão atualizada');
+      toast.success("Comissão atualizada");
     },
-    onError: (e: Error) => toast.error(e.message ?? 'Erro ao atualizar'),
+    onError: (e: Error) => toast.error(e.message ?? "Erro ao atualizar"),
   });
 }
 
@@ -68,9 +64,9 @@ export function useMarcarRecebida() {
       CommissionService.marcarRecebida(id),
     onSuccess: () => {
       invalidarTudo(qc);
-      toast.success('Comissão marcada como recebida');
+      toast.success("Comissão marcada como recebida");
     },
-    onError: (e: Error) => toast.error(e.message ?? 'Erro ao marcar'),
+    onError: (e: Error) => toast.error(e.message ?? "Erro ao marcar"),
   });
 }
 
@@ -80,9 +76,9 @@ export function useRemoverComissao() {
     mutationFn: (id: string) => CommissionService.remover(id),
     onSuccess: () => {
       invalidarTudo(qc);
-      toast.success('Comissão removida');
+      toast.success("Comissão removida");
     },
-    onError: (e: Error) => toast.error(e.message ?? 'Erro ao remover'),
+    onError: (e: Error) => toast.error(e.message ?? "Erro ao remover"),
   });
 }
 
@@ -99,8 +95,8 @@ export function useSalvarMeta() {
     mutationFn: (values: GoalFormValues) => GoalService.salvar(values),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: K.goal(data.month, data.year) });
-      toast.success('Meta salva');
+      toast.success("Meta salva");
     },
-    onError: (e: Error) => toast.error(e.message ?? 'Erro ao salvar meta'),
+    onError: (e: Error) => toast.error(e.message ?? "Erro ao salvar meta"),
   });
 }

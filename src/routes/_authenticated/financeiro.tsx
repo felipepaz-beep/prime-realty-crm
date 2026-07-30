@@ -1,7 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   DollarSign,
   TrendingUp,
@@ -14,37 +14,24 @@ import {
   XCircle,
   BarChart3,
   Wallet,
-} from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from 'recharts';
+} from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import {
   Form,
   FormControl,
@@ -52,7 +39,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form';
+} from "@/components/ui/form";
 
 import {
   useFinanceiroResumo,
@@ -64,8 +51,8 @@ import {
   useRemoverComissao,
   useGoalMes,
   useSalvarMeta,
-} from '@/features/financeiro/hooks/use-financeiro';
-import { CommissionForm } from '@/features/financeiro/components/commission-form';
+} from "@/features/financeiro/hooks/use-financeiro";
+import { CommissionForm } from "@/features/financeiro/components/commission-form";
 import {
   COMMISSION_STATUS_LABELS,
   COMMISSION_STATUS_COLORS,
@@ -73,25 +60,26 @@ import {
   type Commission,
   type CommissionFiltros,
   type CommissionStatus,
-} from '@/features/financeiro/types';
-import { GoalService } from '@/features/financeiro/services/goal.service';
-import { goalSchema, type CommissionFormValues, type GoalFormValues } from '@/features/financeiro/schemas';
+} from "@/features/financeiro/types";
+import { GoalService } from "@/features/financeiro/services/goal.service";
+import {
+  goalSchema,
+  type CommissionFormValues,
+  type GoalFormValues,
+} from "@/features/financeiro/schemas";
 
-export const Route = createFileRoute('/_authenticated/financeiro')({
+export const Route = createFileRoute("/_authenticated/financeiro")({
   head: () => ({
-    meta: [
-      { title: 'Financeiro — Corretor CRM' },
-      { name: 'robots', content: 'noindex' },
-    ],
+    meta: [{ title: "Financeiro — Corretor CRM" }, { name: "robots", content: "noindex" }],
   }),
   component: FinanceiroPage,
 });
 
 const fmt = (v: number) =>
-  Number(v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  Number(v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const fmtData = (d: string | null | undefined) =>
-  d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
-const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "—";
+const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 // ─── Métrica ─────────────────────────────────────────────────────
 
@@ -141,7 +129,7 @@ function DashboardFinanceiro() {
     .slice(0, 6)
     .reverse()
     .map((f) => ({
-      mes: MESES[parseInt(f.mes.split('-')[1], 10) - 1],
+      mes: MESES[parseInt(f.mes.split("-")[1], 10) - 1],
       realizado: Number(f.realizado ?? 0),
       previsto: Number(f.previsto ?? 0),
     }));
@@ -224,11 +212,26 @@ function DashboardFinanceiro() {
                   <YAxis fontSize={11} stroke="currentColor" opacity={0.6} />
                   <Tooltip
                     formatter={(v: number) => fmt(v)}
-                    contentStyle={{ fontSize: 11, background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))' }}
+                    contentStyle={{
+                      fontSize: 11,
+                      background: "hsl(var(--popover))",
+                      border: "1px solid hsl(var(--border))",
+                    }}
                   />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="realizado" name="Realizado" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="previsto" name="Previsto" fill="hsl(var(--muted-foreground))" opacity={0.4} radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="realizado"
+                    name="Realizado"
+                    fill="hsl(var(--primary))"
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="previsto"
+                    name="Previsto"
+                    fill="hsl(var(--muted-foreground))"
+                    opacity={0.4}
+                    radius={[4, 4, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -266,11 +269,11 @@ function Comissoes() {
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row gap-2 md:items-center">
         <Select
-          value={filtros.status ?? 'todos'}
+          value={filtros.status ?? "todos"}
           onValueChange={(v) =>
             setFiltros((f) => ({
               ...f,
-              status: v === 'todos' ? undefined : (v as CommissionStatus),
+              status: v === "todos" ? undefined : (v as CommissionStatus),
             }))
           }
         >
@@ -290,10 +293,8 @@ function Comissoes() {
         <Input
           placeholder="Buscar por código ou observação..."
           className="md:max-w-sm"
-          value={filtros.busca ?? ''}
-          onChange={(e) =>
-            setFiltros((f) => ({ ...f, busca: e.target.value || undefined }))
-          }
+          value={filtros.busca ?? ""}
+          onChange={(e) => setFiltros((f) => ({ ...f, busca: e.target.value || undefined }))}
         />
 
         <div className="md:ml-auto">
@@ -338,9 +339,7 @@ function Comissoes() {
                       </Badge>
                     )}
                     {c.client?.nome && (
-                      <span className="text-xs text-muted-foreground">
-                        · {c.client.nome}
-                      </span>
+                      <span className="text-xs text-muted-foreground">· {c.client.nome}</span>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -354,7 +353,7 @@ function Comissoes() {
                 </div>
 
                 <div className="flex gap-2 md:justify-end">
-                  {c.status !== 'recebida' && c.status !== 'cancelada' && (
+                  {c.status !== "recebida" && c.status !== "cancelada" && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -363,18 +362,14 @@ function Comissoes() {
                       <CheckCircle className="h-4 w-4 mr-1" /> Receber
                     </Button>
                   )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setEditando(c)}
-                  >
+                  <Button size="sm" variant="outline" onClick={() => setEditando(c)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
                     onClick={() => {
-                      if (confirm('Remover esta comissão?')) remover.mutate(c.id);
+                      if (confirm("Remover esta comissão?")) remover.mutate(c.id);
                     }}
                   >
                     <XCircle className="h-4 w-4" />
@@ -524,7 +519,7 @@ function Metas() {
                 />
                 <div className="flex justify-end">
                   <Button type="submit" disabled={salvar.isPending}>
-                    {salvar.isPending ? 'Salvando...' : 'Salvar meta'}
+                    {salvar.isPending ? "Salvando..." : "Salvar meta"}
                   </Button>
                 </div>
               </form>

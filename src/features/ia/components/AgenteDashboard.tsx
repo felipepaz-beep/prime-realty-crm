@@ -1,43 +1,50 @@
-
 // src/features/ia/components/AgenteDashboard.tsx
 // Painel visual do Agente de IA — mostra pendentes, sugestões e follow-ups
 
-import { useState } from 'react'
-import { runWhatsAppAgent, AgentRunResult, AgentSuggestion } from '../services/whatsapp-agent'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Loader2, Bot, MessageSquare, Clock, UserPlus, RefreshCw, Copy, CheckCheck } from 'lucide-react'
-import { toast } from 'sonner'
+import { useState } from "react";
+import { runWhatsAppAgent, AgentRunResult, AgentSuggestion } from "../services/whatsapp-agent";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Loader2,
+  Bot,
+  MessageSquare,
+  Clock,
+  UserPlus,
+  RefreshCw,
+  Copy,
+  CheckCheck,
+} from "lucide-react";
+import { toast } from "sonner";
 
 export function AgenteDashboard() {
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<AgentRunResult | null>(null)
-  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<AgentRunResult | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   async function rodarAgente() {
-    setLoading(true)
+    setLoading(true);
     try {
-      const res = await runWhatsAppAgent()
-      setResult(res)
-      toast.success(`Agente concluído — ${res.pendingChats.length} pendentes encontrados`)
+      const res = await runWhatsAppAgent();
+      setResult(res);
+      toast.success(`Agente concluído — ${res.pendingChats.length} pendentes encontrados`);
     } catch (e: any) {
-      toast.error(`Erro ao rodar agente: ${e.message}`)
+      toast.error(`Erro ao rodar agente: ${e.message}`);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   async function copiarResposta(suggestion: AgentSuggestion) {
-    await navigator.clipboard.writeText(suggestion.suggestedReply)
-    setCopiedId(suggestion.chatId)
-    toast.success('Resposta copiada!')
-    setTimeout(() => setCopiedId(null), 2000)
+    await navigator.clipboard.writeText(suggestion.suggestedReply);
+    setCopiedId(suggestion.chatId);
+    toast.success("Resposta copiada!");
+    setTimeout(() => setCopiedId(null), 2000);
   }
 
   return (
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
-
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -54,9 +61,15 @@ export function AgenteDashboard() {
 
         <Button onClick={rodarAgente} disabled={loading} size="lg">
           {loading ? (
-            <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Analisando...</>
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Analisando...
+            </>
           ) : (
-            <><RefreshCw className="w-4 h-4 mr-2" />Rodar Agente</>
+            <>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Rodar Agente
+            </>
           )}
         </Button>
       </div>
@@ -103,7 +116,8 @@ export function AgenteDashboard() {
               Clique em "Rodar Agente" para analisar suas conversas do WhatsApp
             </p>
             <p className="text-xs text-muted-foreground">
-              O agente vai identificar quem está esperando resposta, sugerir textos e atualizar o CRM
+              O agente vai identificar quem está esperando resposta, sugerir textos e atualizar o
+              CRM
             </p>
           </CardContent>
         </Card>
@@ -149,9 +163,15 @@ export function AgenteDashboard() {
                       onClick={() => copiarResposta(item)}
                     >
                       {copiedId === item.chatId ? (
-                        <><CheckCheck className="w-3 h-3 mr-1" />Copiado</>
+                        <>
+                          <CheckCheck className="w-3 h-3 mr-1" />
+                          Copiado
+                        </>
                       ) : (
-                        <><Copy className="w-3 h-3 mr-1" />Copiar</>
+                        <>
+                          <Copy className="w-3 h-3 mr-1" />
+                          Copiar
+                        </>
                       )}
                     </Button>
                   </div>
@@ -193,11 +213,12 @@ export function AgenteDashboard() {
                       variant="ghost"
                       className="h-6 px-2 text-xs"
                       onClick={async () => {
-                        await navigator.clipboard.writeText(item.message)
-                        toast.success('Mensagem copiada!')
+                        await navigator.clipboard.writeText(item.message);
+                        toast.success("Mensagem copiada!");
                       }}
                     >
-                      <Copy className="w-3 h-3 mr-1" />Copiar
+                      <Copy className="w-3 h-3 mr-1" />
+                      Copiar
                     </Button>
                   </div>
                   <p className="text-sm">{item.message}</p>
@@ -214,12 +235,13 @@ export function AgenteDashboard() {
           <CardContent className="pt-4">
             <p className="text-sm font-medium text-red-600 mb-2">Avisos do agente:</p>
             {result.errors.map((e, i) => (
-              <p key={i} className="text-xs text-muted-foreground">• {e}</p>
+              <p key={i} className="text-xs text-muted-foreground">
+                • {e}
+              </p>
             ))}
           </CardContent>
         </Card>
       )}
-
     </div>
-  )
+  );
 }

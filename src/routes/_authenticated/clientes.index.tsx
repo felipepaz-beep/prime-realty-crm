@@ -1,33 +1,51 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
-import { useState, useCallback } from 'react';
-import { UserPlus, Search, Users } from 'lucide-react';
-import { toast } from 'sonner';
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useState, useCallback } from "react";
+import { UserPlus, Search, Users } from "lucide-react";
+import { toast } from "sonner";
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
-import { useClientes, useCriarCliente, useRemoverCliente } from '@/features/clientes/hooks/use-clientes';
-import { ClienteForm } from '@/features/clientes/components/cliente-form';
-import { StatusBadge, EtapaFunilBadge, PrioridadeBadge, TemperaturaBadge } from '@/features/clientes/components/cliente-badge';
-import type { ClienteFormValues } from '@/features/clientes/schemas';
-import type { ClienteFiltros } from '@/features/clientes/types';
+import {
+  useClientes,
+  useCriarCliente,
+  useRemoverCliente,
+} from "@/features/clientes/hooks/use-clientes";
+import { ClienteForm } from "@/features/clientes/components/cliente-form";
+import {
+  StatusBadge,
+  EtapaFunilBadge,
+  PrioridadeBadge,
+  TemperaturaBadge,
+} from "@/features/clientes/components/cliente-badge";
+import type { ClienteFormValues } from "@/features/clientes/schemas";
+import type { ClienteFiltros } from "@/features/clientes/types";
 
-export const Route = createFileRoute('/_authenticated/clientes/')({
+export const Route = createFileRoute("/_authenticated/clientes/")({
   head: () => ({
-    meta: [
-      { title: 'Clientes — Corretor CRM' },
-      { name: 'robots', content: 'noindex' },
-    ],
+    meta: [{ title: "Clientes — Corretor CRM" }, { name: "robots", content: "noindex" }],
   }),
   component: ClientesPage,
 });
 
 function ClientesPage() {
-  const [filtros, setFiltros] = useState<ClienteFiltros>({ pagina: 1, porPagina: 20, ordem: 'desc', ordenarPor: 'created_at' });
-  const [busca, setBusca] = useState('');
+  const [filtros, setFiltros] = useState<ClienteFiltros>({
+    pagina: 1,
+    porPagina: 20,
+    ordem: "desc",
+    ordenarPor: "created_at",
+  });
+  const [busca, setBusca] = useState("");
   const [novoAberto, setNovoAberto] = useState(false);
 
   const { data, isLoading, isError } = useClientes(filtros);
@@ -38,20 +56,26 @@ function ClientesPage() {
   const handleBusca = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value;
     setBusca(v);
-    setFiltros(f => ({ ...f, busca: v || undefined, pagina: 1 }));
+    setFiltros((f) => ({ ...f, busca: v || undefined, pagina: 1 }));
   }, []);
 
-  const handleCriar = useCallback(async (values: ClienteFormValues) => {
-    await criarCliente.mutateAsync(values);
-    toast.success('Cliente cadastrado com sucesso!');
-    setNovoAberto(false);
-  }, [criarCliente]);
+  const handleCriar = useCallback(
+    async (values: ClienteFormValues) => {
+      await criarCliente.mutateAsync(values);
+      toast.success("Cliente cadastrado com sucesso!");
+      setNovoAberto(false);
+    },
+    [criarCliente],
+  );
 
-  const handleRemover = useCallback(async (id: string, nome: string) => {
-    if (!confirm(`Remover "${nome}"?`)) return;
-    await removerCliente.mutateAsync(id);
-    toast.success('Cliente removido.');
-  }, [removerCliente]);
+  const handleRemover = useCallback(
+    async (id: string, nome: string) => {
+      if (!confirm(`Remover "${nome}"?`)) return;
+      await removerCliente.mutateAsync(id);
+      toast.success("Cliente removido.");
+    },
+    [removerCliente],
+  );
 
   const clientes = data?.data ?? [];
   const total = data?.total ?? 0;
@@ -63,7 +87,7 @@ function ClientesPage() {
         <div>
           <h1 className="text-lg font-semibold">Clientes</h1>
           <p className="text-sm text-muted-foreground">
-            {isLoading ? '...' : `${total} ${total === 1 ? 'cliente' : 'clientes'}`}
+            {isLoading ? "..." : `${total} ${total === 1 ? "cliente" : "clientes"}`}
           </p>
         </div>
         <Button size="sm" onClick={() => setNovoAberto(true)}>
@@ -103,7 +127,7 @@ function ClientesPage() {
             <div>
               <p className="text-sm font-medium">Nenhum cliente encontrado</p>
               <p className="text-xs text-muted-foreground mt-1">
-                {busca ? 'Tente outro termo de busca.' : 'Cadastre seu primeiro cliente.'}
+                {busca ? "Tente outro termo de busca." : "Cadastre seu primeiro cliente."}
               </p>
             </div>
             {!busca && (
@@ -130,20 +154,35 @@ function ClientesPage() {
                 <TableRow
                   key={c.id}
                   className="cursor-pointer hover:bg-muted/40 select-none"
-                  onClick={() => navigate({ to: '/clientes/$clienteId', params: { clienteId: c.id } })}
+                  onClick={() =>
+                    navigate({ to: "/clientes/$clienteId", params: { clienteId: c.id } })
+                  }
                 >
                   <TableCell className="font-medium">{c.nome}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{c.whatsapp || c.telefone || c.email || '—'}</TableCell>
-                  <TableCell><EtapaFunilBadge value={c.etapa_funil} /></TableCell>
-                  <TableCell><StatusBadge value={c.status} /></TableCell>
-                  <TableCell><PrioridadeBadge value={c.prioridade} /></TableCell>
-                  <TableCell><TemperaturaBadge value={c.temperatura} /></TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {c.whatsapp || c.telefone || c.email || "—"}
+                  </TableCell>
+                  <TableCell>
+                    <EtapaFunilBadge value={c.etapa_funil} />
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge value={c.status} />
+                  </TableCell>
+                  <TableCell>
+                    <PrioridadeBadge value={c.prioridade} />
+                  </TableCell>
+                  <TableCell>
+                    <TemperaturaBadge value={c.temperatura} />
+                  </TableCell>
                   <TableCell>
                     <Button
                       size="sm"
                       variant="ghost"
                       className="text-destructive hover:text-destructive hover:bg-destructive/10 h-7 px-2 text-xs"
-                      onClick={(e) => { e.stopPropagation(); handleRemover(c.id, c.nome); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemover(c.id, c.nome);
+                      }}
                     >
                       Remover
                     </Button>
@@ -163,16 +202,18 @@ function ClientesPage() {
           </p>
           <div className="flex gap-2">
             <Button
-              size="sm" variant="outline"
+              size="sm"
+              variant="outline"
               disabled={(filtros.pagina ?? 1) <= 1}
-              onClick={() => setFiltros(f => ({ ...f, pagina: (f.pagina ?? 1) - 1 }))}
+              onClick={() => setFiltros((f) => ({ ...f, pagina: (f.pagina ?? 1) - 1 }))}
             >
               Anterior
             </Button>
             <Button
-              size="sm" variant="outline"
+              size="sm"
+              variant="outline"
               disabled={(filtros.pagina ?? 1) >= Math.ceil(total / (filtros.porPagina ?? 20))}
-              onClick={() => setFiltros(f => ({ ...f, pagina: (f.pagina ?? 1) + 1 }))}
+              onClick={() => setFiltros((f) => ({ ...f, pagina: (f.pagina ?? 1) + 1 }))}
             >
               Próxima
             </Button>

@@ -1,7 +1,7 @@
-import { supabase } from '@/integrations/supabase/client';
-import type { Goal, GoalInsert } from '../types';
+import { supabase } from "@/integrations/supabase/client";
+import type { Goal, GoalInsert } from "../types";
 
-const TABLE = 'goals';
+const TABLE = "goals";
 
 export const GoalService = {
   mesAtual() {
@@ -17,26 +17,23 @@ export const GoalService = {
   async buscar(month: number, year: number): Promise<Goal | null> {
     const { data, error } = await supabase
       .from(TABLE)
-      .select('*')
-      .eq('month', month)
-      .eq('year', year)
+      .select("*")
+      .eq("month", month)
+      .eq("year", year)
       .maybeSingle();
     if (error) throw error;
     return (data as Goal) ?? null;
   },
 
-  async salvar(payload: Omit<GoalInsert, 'owner_id'>): Promise<Goal> {
+  async salvar(payload: Omit<GoalInsert, "owner_id">): Promise<Goal> {
     const { data: userData } = await supabase.auth.getUser();
     const ownerId = userData.user?.id;
-    if (!ownerId) throw new Error('Usuário não autenticado.');
+    if (!ownerId) throw new Error("Usuário não autenticado.");
 
     const { data, error } = await supabase
       .from(TABLE)
-      .upsert(
-        { ...payload, owner_id: ownerId } as never,
-        { onConflict: 'owner_id,month,year' },
-      )
-      .select('*')
+      .upsert({ ...payload, owner_id: ownerId } as never, { onConflict: "owner_id,month,year" })
+      .select("*")
       .single();
     if (error) throw error;
     return data as Goal;

@@ -8,10 +8,7 @@ export const signInSchema = z.object({
 export const signUpSchema = z.object({
   fullName: z.string().trim().min(2, "Informe seu nome completo").max(120),
   email: z.string().trim().email("E-mail inválido"),
-  password: z
-    .string()
-    .min(8, "Mínimo de 8 caracteres")
-    .max(72, "Máximo de 72 caracteres"),
+  password: z.string().min(8, "Mínimo de 8 caracteres").max(72, "Máximo de 72 caracteres"),
 });
 
 export const forgotPasswordSchema = z.object({

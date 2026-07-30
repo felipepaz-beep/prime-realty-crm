@@ -1,21 +1,40 @@
 export type TimelineCategory =
-  | 'ciclo_vida' | 'pipeline' | 'comunicacao' | 'visita'
-  | 'documento' | 'tarefa' | 'negocio' | 'sistema';
+  | "ciclo_vida"
+  | "pipeline"
+  | "comunicacao"
+  | "visita"
+  | "documento"
+  | "tarefa"
+  | "negocio"
+  | "sistema";
 
 export type TimelineEventType =
-  | 'cliente_criado' | 'cliente_atualizado' | 'cliente_deletado'
-  | 'etapa_alterada'
-  | 'followup_criado' | 'followup_realizado'
-  | 'tarefa_criada' | 'tarefa_concluida'
-  | 'ligacao_realizada' | 'ligacao_recebida'
-  | 'whatsapp_enviado' | 'whatsapp_recebido'
-  | 'email_enviado' | 'email_recebido'
-  | 'visita_agendada' | 'visita_realizada'
-  | 'documento_anexado' | 'documento_removido'
-  | 'nota_adicionada' | 'nota_atualizada'
-  | 'proposta_enviada' | 'proposta_aceita'
-  | 'financiamento_iniciado' | 'financiamento_aprovado'
-  | 'venda_concluida' | 'evento_customizado';
+  | "cliente_criado"
+  | "cliente_atualizado"
+  | "cliente_deletado"
+  | "etapa_alterada"
+  | "followup_criado"
+  | "followup_realizado"
+  | "tarefa_criada"
+  | "tarefa_concluida"
+  | "ligacao_realizada"
+  | "ligacao_recebida"
+  | "whatsapp_enviado"
+  | "whatsapp_recebido"
+  | "email_enviado"
+  | "email_recebido"
+  | "visita_agendada"
+  | "visita_realizada"
+  | "documento_anexado"
+  | "documento_removido"
+  | "nota_adicionada"
+  | "nota_atualizada"
+  | "proposta_enviada"
+  | "proposta_aceita"
+  | "financiamento_iniciado"
+  | "financiamento_aprovado"
+  | "venda_concluida"
+  | "evento_customizado";
 
 export type TimelineMetadata =
   | { etapa_anterior: string; etapa_nova: string }

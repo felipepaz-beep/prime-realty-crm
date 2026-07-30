@@ -69,7 +69,10 @@ Deno.serve(async (req) => {
     const accessToken = await gcalRefreshToken(refreshToken);
 
     if (action === "create") {
-      const id = await gcalCreateEvent(accessToken, payload as Parameters<typeof gcalCreateEvent>[1]);
+      const id = await gcalCreateEvent(
+        accessToken,
+        payload as Parameters<typeof gcalCreateEvent>[1],
+      );
       return new Response(JSON.stringify({ googleEventId: id }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -77,7 +80,11 @@ Deno.serve(async (req) => {
 
     if (action === "update") {
       if (!googleEventId) throw new Error("googleEventId required for update");
-      await gcalUpdateEvent(accessToken, googleEventId, payload as Parameters<typeof gcalUpdateEvent>[2]);
+      await gcalUpdateEvent(
+        accessToken,
+        googleEventId,
+        payload as Parameters<typeof gcalUpdateEvent>[2],
+      );
       return new Response(JSON.stringify({ ok: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

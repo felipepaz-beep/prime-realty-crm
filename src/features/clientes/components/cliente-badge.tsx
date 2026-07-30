@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 import {
   ETAPA_FUNIL_LABELS,
   PRIORIDADE_CLASSES,
@@ -6,12 +6,22 @@ import {
   STATUS_CLASSES,
   STATUS_LABELS,
   TEMPERATURA_LABELS,
-} from '../constants';
-import type { ClienteEtapaFunil, ClientePrioridade, ClienteStatus, ClienteTemperatura } from '../types';
+} from "../constants";
+import type {
+  ClienteEtapaFunil,
+  ClientePrioridade,
+  ClienteStatus,
+  ClienteTemperatura,
+} from "../types";
 
 function MiniTag({ label, className }: { label: string; className?: string }) {
   return (
-    <span className={cn('inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium', className)}>
+    <span
+      className={cn(
+        "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium",
+        className,
+      )}
+    >
       {label}
     </span>
   );
@@ -30,10 +40,5 @@ export function TemperaturaBadge({ value }: { value: ClienteTemperatura }) {
 }
 
 export function EtapaFunilBadge({ value }: { value: ClienteEtapaFunil }) {
-  return (
-    <MiniTag
-      label={ETAPA_FUNIL_LABELS[value]}
-      className="bg-accent text-accent-foreground"
-    />
-  );
+  return <MiniTag label={ETAPA_FUNIL_LABELS[value]} className="bg-accent text-accent-foreground" />;
 }
