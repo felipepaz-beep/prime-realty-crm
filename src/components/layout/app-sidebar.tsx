@@ -11,6 +11,7 @@ import {
   Settings,
   Home,
   User,
+  BellRing,
 } from "lucide-react";
 
 import {
@@ -41,6 +42,7 @@ const workspaceItems: NavItem[] = [
   { title: "Clientes", url: "/clientes", icon: Users },
   { title: "Agenda", url: "/agenda", icon: Calendar },
   { title: "Kanban", url: "/kanban", icon: KanbanSquare },
+  { title: "Follow-up", url: "/followup", icon: BellRing },
 ];
 
 const toolItems: NavItem[] = [

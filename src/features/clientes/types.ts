@@ -1,20 +1,20 @@
-export type ClienteStatus = 'ativo' | 'inativo' | 'perdido' | 'ganho';
+export type ClienteStatus = "ativo" | "inativo" | "perdido" | "ganho";
 
 export type ClienteEtapaFunil =
-  | 'novo_lead'
-  | 'contato_iniciado'
-  | 'qualificacao'
-  | 'visita_agendada'
-  | 'proposta'
-  | 'negociacao'
-  | 'fechado_ganho'
-  | 'fechado_perdido';
+  | "novo_lead"
+  | "contato_iniciado"
+  | "qualificacao"
+  | "visita_agendada"
+  | "proposta"
+  | "negociacao"
+  | "fechado_ganho"
+  | "fechado_perdido";
 
-export type ClientePrioridade = 'baixa' | 'media' | 'alta' | 'urgente';
+export type ClientePrioridade = "baixa" | "media" | "alta" | "urgente";
 
-export type ClienteTemperatura = 'frio' | 'morno' | 'quente';
+export type ClienteTemperatura = "frio" | "morno" | "quente";
 
-export type ClienteFinalidade = 'compra' | 'venda' | 'locacao';
+export type ClienteFinalidade = "compra" | "venda" | "locacao";
 
 export interface Cliente {
   id: string;
@@ -44,6 +44,7 @@ export interface Cliente {
   bairros_interesse: string[];
   cidades_interesse: string[];
   ultimo_contato: string | null;
+  followup_intervalo_dias: number;
   proximo_followup: string | null;
   ultima_visita: string | null;
   observacoes: string | null;
@@ -55,8 +56,13 @@ export interface Cliente {
   custom_fields: Record<string, unknown>;
 }
 
-export type ClienteInsert = Pick<Cliente, 'nome'> &
-  Partial<Omit<Cliente, 'id' | 'owner_id' | 'created_at' | 'updated_at' | 'deleted_at' | 'is_active' | 'nome'>>;
+export type ClienteInsert = Pick<Cliente, "nome"> &
+  Partial<
+    Omit<
+      Cliente,
+      "id" | "owner_id" | "created_at" | "updated_at" | "deleted_at" | "is_active" | "nome"
+    >
+  >;
 
 export type ClienteUpdate = Partial<ClienteInsert>;
 
@@ -67,8 +73,8 @@ export interface ClienteFiltros {
   prioridade?: ClientePrioridade[];
   temperatura?: ClienteTemperatura[];
   tags?: string[];
-  ordenarPor?: keyof Pick<Cliente, 'nome' | 'created_at' | 'proximo_followup' | 'score'>;
-  ordem?: 'asc' | 'desc';
+  ordenarPor?: keyof Pick<Cliente, "nome" | "created_at" | "proximo_followup" | "score">;
+  ordem?: "asc" | "desc";
   pagina?: number;
   porPagina?: number;
 }

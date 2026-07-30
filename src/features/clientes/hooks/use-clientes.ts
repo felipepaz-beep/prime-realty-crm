@@ -1,18 +1,30 @@
-import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
-import { atualizarCliente, buscarClientePorId, criarCliente, listarClientes, removerCliente, restaurarCliente } from '../services/clients.service';
-import { TimelineService } from '../services/timeline.service';
-import type { ClienteFiltros, ClienteInsert, ClienteUpdate } from '../types';
+import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import {
+  atualizarCliente,
+  buscarClientePorId,
+  criarCliente,
+  listarClientes,
+  listarFollowups,
+  registrarContato,
+  removerCliente,
+  restaurarCliente,
+} from "../services/clients.service";
+import { TimelineService } from "../services/timeline.service";
+import type { ClienteFiltros, ClienteInsert, ClienteUpdate } from "../types";
 
 export const clientesKeys = {
-  all: ['clientes'] as const,
-  lists: () => [...clientesKeys.all, 'list'] as const,
+  all: ["clientes"] as const,
+  lists: () => [...clientesKeys.all, "list"] as const,
   list: (filtros: ClienteFiltros) => [...clientesKeys.lists(), filtros] as const,
-  details: () => [...clientesKeys.all, 'detail'] as const,
+  details: () => [...clientesKeys.all, "detail"] as const,
   detail: (id: string) => [...clientesKeys.details(), id] as const,
 };
 
 export function useClientesSuspense(filtros: ClienteFiltros = {}) {
-  return useSuspenseQuery({ queryKey: clientesKeys.list(filtros), queryFn: () => listarClientes(filtros) });
+  return useSuspenseQuery({
+    queryKey: clientesKeys.list(filtros),
+    queryFn: () => listarClientes(filtros),
+  });
 }
 
 export function useClientes(filtros: ClienteFiltros = {}) {
@@ -49,7 +61,9 @@ export function useRemoverCliente() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => removerCliente(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: clientesKeys.lists() }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: clientesKeys.lists() });
+    },
   });
 }
 
@@ -57,6 +71,32 @@ export function useRestaurarCliente() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => restaurarCliente(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: clientesKeys.lists() }); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: clientesKeys.lists() });
+    },
+  });
+}
+
+export const followupKeys = {
+  all: ["followups"] as const,
+};
+
+export function useFollowups() {
+  return useQuery({ queryKey: followupKeys.all, queryFn: listarFollowups, staleTime: 30_000 });
+}
+
+export function useRegistrarContato() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data?: string }) => registrarContato(id, data),
+    onSuccess: (cliente) => {
+      qc.invalidateQueries({ queryKey: followupKeys.all });
+      qc.invalidateQueries({ queryKey: clientesKeys.lists() });
+      qc.setQueryData(clientesKeys.detail(cliente.id), cliente);
+      TimelineService.followupRealizado(
+        cliente.id,
+        `Contato registrado. Próximo em ${cliente.proximo_followup ?? "—"}.`,
+      );
+    },
   });
 }

@@ -1,30 +1,55 @@
-import { supabase } from '@/integrations/supabase/client';
-import { TimelineService } from './timeline.service';
-import type { Cliente, ClienteFiltros, ClienteInsert, ClienteUpdate, ClientesPaginados } from '../types';
+import { supabase } from "@/integrations/supabase/client";
+import { TimelineService } from "./timeline.service";
+import type {
+  Cliente,
+  ClienteFiltros,
+  ClienteInsert,
+  ClienteUpdate,
+  ClientesPaginados,
+} from "../types";
 
-const TABLE = 'clients';
+const TABLE = "clients";
 
 export async function listarClientes(filtros: ClienteFiltros = {}): Promise<ClientesPaginados> {
-  const { busca, status, etapa_funil, prioridade, temperatura, tags, ordenarPor = 'created_at', ordem = 'desc', pagina = 1, porPagina = 20 } = filtros;
+  const {
+    busca,
+    status,
+    etapa_funil,
+    prioridade,
+    temperatura,
+    tags,
+    ordenarPor = "created_at",
+    ordem = "desc",
+    pagina = 1,
+    porPagina = 20,
+  } = filtros;
 
-  let query = supabase.from(TABLE).select('*', { count: 'exact' }).is('deleted_at', null);
+  let query = supabase.from(TABLE).select("*", { count: "exact" }).is("deleted_at", null);
 
-  if (busca) query = query.or(`nome.ilike.%${busca}%,telefone.ilike.%${busca}%,email.ilike.%${busca}%`);
-  if (status?.length) query = query.in('status', status);
-  if (etapa_funil?.length) query = query.in('etapa_funil', etapa_funil);
-  if (prioridade?.length) query = query.in('prioridade', prioridade);
-  if (temperatura?.length) query = query.in('temperatura', temperatura);
-  if (tags?.length) query = query.contains('tags', tags);
+  if (busca)
+    query = query.or(`nome.ilike.%${busca}%,telefone.ilike.%${busca}%,email.ilike.%${busca}%`);
+  if (status?.length) query = query.in("status", status);
+  if (etapa_funil?.length) query = query.in("etapa_funil", etapa_funil);
+  if (prioridade?.length) query = query.in("prioridade", prioridade);
+  if (temperatura?.length) query = query.in("temperatura", temperatura);
+  if (tags?.length) query = query.contains("tags", tags);
 
   const inicio = (pagina - 1) * porPagina;
-  const { data, error, count } = await query.order(ordenarPor, { ascending: ordem === 'asc' }).range(inicio, inicio + porPagina - 1);
+  const { data, error, count } = await query
+    .order(ordenarPor, { ascending: ordem === "asc" })
+    .range(inicio, inicio + porPagina - 1);
 
   if (error) throw error;
   return { data: (data ?? []) as Cliente[], total: count ?? 0, pagina, porPagina };
 }
 
 export async function buscarClientePorId(id: string): Promise<Cliente> {
-  const { data, error } = await supabase.from(TABLE).select('*').eq('id', id).is('deleted_at', null).single();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select("*")
+    .eq("id", id)
+    .is("deleted_at", null)
+    .single();
   if (error) throw error;
   return data as Cliente;
 }
@@ -32,8 +57,12 @@ export async function buscarClientePorId(id: string): Promise<Cliente> {
 export async function criarCliente(payload: ClienteInsert): Promise<Cliente> {
   const { data: sessionData } = await supabase.auth.getUser();
   const ownerId = sessionData.user?.id;
-  if (!ownerId) throw new Error('Usuário não autenticado.');
-  const { data, error } = await supabase.from(TABLE).insert({ ...payload, owner_id: ownerId } as never).select('*').single();
+  if (!ownerId) throw new Error("Usuário não autenticado.");
+  const { data, error } = await supabase
+    .from(TABLE)
+    .insert({ ...payload, owner_id: ownerId } as never)
+    .select("*")
+    .single();
   if (error) throw error;
   const cliente = data as Cliente;
   // Evento automático de criação (fire-and-forget)
@@ -42,18 +71,58 @@ export async function criarCliente(payload: ClienteInsert): Promise<Cliente> {
 }
 
 export async function atualizarCliente(id: string, payload: ClienteUpdate): Promise<Cliente> {
-  const { data, error } = await supabase.from(TABLE).update(payload as never).eq('id', id).select('*').single();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .update(payload as never)
+    .eq("id", id)
+    .select("*")
+    .single();
   if (error) throw error;
   return data as Cliente;
 }
 
 export async function removerCliente(id: string): Promise<void> {
-  const { error } = await supabase.from(TABLE).update({ deleted_at: new Date().toISOString(), is_active: false }).eq('id', id);
+  const { error } = await supabase
+    .from(TABLE)
+    .update({ deleted_at: new Date().toISOString(), is_active: false })
+    .eq("id", id);
   if (error) throw error;
 }
 
 export async function restaurarCliente(id: string): Promise<Cliente> {
-  const { data, error } = await supabase.from(TABLE).update({ deleted_at: null, is_active: true }).eq('id', id).select('*').single();
+  const { data, error } = await supabase
+    .from(TABLE)
+    .update({ deleted_at: null, is_active: true })
+    .eq("id", id)
+    .select("*")
+    .single();
   if (error) throw error;
   return data as Cliente;
+}
+
+export async function registrarContato(id: string, dataContato?: string): Promise<Cliente> {
+  const hoje = dataContato ?? new Date().toISOString().split("T")[0];
+  const { data: atual, error: erroLeitura } = await supabase
+    .from(TABLE)
+    .select("followup_intervalo_dias")
+    .eq("id", id)
+    .single();
+  if (erroLeitura) throw erroLeitura;
+  const intervalo = (atual as { followup_intervalo_dias: number }).followup_intervalo_dias ?? 4;
+  const proximo = new Date(hoje + "T12:00:00");
+  proximo.setDate(proximo.getDate() + intervalo);
+  return atualizarCliente(id, {
+    ultimo_contato: hoje,
+    proximo_followup: proximo.toISOString().split("T")[0],
+  });
+}
+
+export async function listarFollowups(): Promise<Cliente[]> {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select("*")
+    .is("deleted_at", null)
+    .order("proximo_followup", { ascending: true, nullsFirst: false });
+  if (error) throw error;
+  return (data ?? []) as Cliente[];
 }
