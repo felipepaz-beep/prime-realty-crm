@@ -1,4 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import logoMark from "@/assets/logo-felipe-paz-mark.svg";
 import {
   LayoutDashboard,
   Users,
