@@ -1,17 +1,17 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { CopilotoService } from '../services/copiloto.service';
-import type { MensagemConversa, MensagemCopiloto } from '../services/copiloto.service';
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { CopilotoService } from "../services/copiloto.service";
+import type { MensagemConversa, MensagemCopiloto } from "../services/copiloto.service";
 
 export { type MensagemConversa, type MensagemCopiloto };
 
 export const copilotoKeys = {
-  all: ['copiloto'] as const,
-  mensagens: (clientId: string) => [...copilotoKeys.all, 'msgs', clientId] as const,
+  all: ["copiloto"] as const,
+  mensagens: (clientId: string) => [...copilotoKeys.all, "msgs", clientId] as const,
 };
 
 export function useMensagensCliente(clientId: string | null) {
   return useQuery({
-    queryKey: copilotoKeys.mensagens(clientId ?? ''),
+    queryKey: copilotoKeys.mensagens(clientId ?? ""),
     queryFn: () => CopilotoService.buscarMensagensCliente(clientId!),
     enabled: !!clientId,
     staleTime: 30_000,

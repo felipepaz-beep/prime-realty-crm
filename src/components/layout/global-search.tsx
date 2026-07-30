@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   User,
   Kanban,
@@ -10,7 +10,7 @@ import {
   Sparkles,
   Users,
   Settings,
-} from 'lucide-react';
+} from "lucide-react";
 
 import {
   CommandDialog,
@@ -20,19 +20,19 @@ import {
   CommandGroup,
   CommandItem,
   CommandSeparator,
-} from '@/components/ui/command';
-import { useClientes } from '@/features/clientes/hooks/use-clientes';
-import { ETAPA_FUNIL_LABELS } from '@/features/clientes/constants';
+} from "@/components/ui/command";
+import { useClientes } from "@/features/clientes/hooks/use-clientes";
+import { ETAPA_FUNIL_LABELS } from "@/features/clientes/constants";
 
 const NAVEGACAO = [
-  { label: 'Clientes', to: '/clientes' as const, icon: Users },
-  { label: 'Pipeline (Kanban)', to: '/kanban' as const, icon: Kanban },
-  { label: 'Agenda', to: '/agenda' as const, icon: Calendar },
-  { label: 'Financeiro', to: '/financeiro' as const, icon: DollarSign },
-  { label: 'Comunicação', to: '/whatsapp' as const, icon: MessageCircle },
-  { label: 'Relatórios', to: '/relatorios' as const, icon: BarChart2 },
-  { label: 'Assistente IA', to: '/ia' as const, icon: Sparkles },
-  { label: 'Configurações', to: '/configuracoes' as const, icon: Settings },
+  { label: "Clientes", to: "/clientes" as const, icon: Users },
+  { label: "Pipeline (Kanban)", to: "/kanban" as const, icon: Kanban },
+  { label: "Agenda", to: "/agenda" as const, icon: Calendar },
+  { label: "Financeiro", to: "/financeiro" as const, icon: DollarSign },
+  { label: "Comunicação", to: "/whatsapp" as const, icon: MessageCircle },
+  { label: "Relatórios", to: "/relatorios" as const, icon: BarChart2 },
+  { label: "Assistente IA", to: "/ia" as const, icon: Sparkles },
+  { label: "Configurações", to: "/configuracoes" as const, icon: Settings },
 ];
 
 interface Props {
@@ -42,8 +42,8 @@ interface Props {
 
 export function GlobalSearch({ open, onOpenChange }: Props) {
   const navigate = useNavigate();
-  const [busca, setBusca] = useState('');
-  const [debouncedBusca, setDebouncedBusca] = useState('');
+  const [busca, setBusca] = useState("");
+  const [debouncedBusca, setDebouncedBusca] = useState("");
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedBusca(busca), 300);
@@ -51,13 +51,13 @@ export function GlobalSearch({ open, onOpenChange }: Props) {
   }, [busca]);
 
   useEffect(() => {
-    if (!open) setBusca('');
+    if (!open) setBusca("");
   }, [open]);
 
   const { data } = useClientes(
     debouncedBusca.length >= 2
       ? { busca: debouncedBusca, porPagina: 8 }
-      : { porPagina: 5, ordenarPor: 'created_at', ordem: 'desc' },
+      : { porPagina: 5, ordenarPor: "created_at", ordem: "desc" },
   );
 
   const clientes = data?.data ?? [];
@@ -65,13 +65,13 @@ export function GlobalSearch({ open, onOpenChange }: Props) {
   const handleSelectCliente = useCallback(
     (id: string) => {
       onOpenChange(false);
-      navigate({ to: '/clientes/$clienteId', params: { clienteId: id } });
+      navigate({ to: "/clientes/$clienteId", params: { clienteId: id } });
     },
     [navigate, onOpenChange],
   );
 
   const handleSelectNav = useCallback(
-    (to: (typeof NAVEGACAO)[number]['to']) => {
+    (to: (typeof NAVEGACAO)[number]["to"]) => {
       onOpenChange(false);
       navigate({ to });
     },
@@ -88,11 +88,11 @@ export function GlobalSearch({ open, onOpenChange }: Props) {
       <CommandList>
         <CommandEmpty>Nenhum resultado encontrado.</CommandEmpty>
 
-        <CommandGroup heading={debouncedBusca.length >= 2 ? 'Clientes' : 'Clientes recentes'}>
+        <CommandGroup heading={debouncedBusca.length >= 2 ? "Clientes" : "Clientes recentes"}>
           {clientes.map((c) => (
             <CommandItem
               key={c.id}
-              value={`${c.nome} ${c.telefone ?? ''} ${c.whatsapp ?? ''} ${c.email ?? ''}`}
+              value={`${c.nome} ${c.telefone ?? ""} ${c.whatsapp ?? ""} ${c.email ?? ""}`}
               onSelect={() => handleSelectCliente(c.id)}
             >
               <User className="shrink-0" />
@@ -108,9 +108,8 @@ export function GlobalSearch({ open, onOpenChange }: Props) {
         <CommandSeparator />
 
         <CommandGroup heading="Navegar para">
-          {NAVEGACAO.filter(({ label }) =>
-            busca.length === 0 ||
-            label.toLowerCase().includes(busca.toLowerCase()),
+          {NAVEGACAO.filter(
+            ({ label }) => busca.length === 0 || label.toLowerCase().includes(busca.toLowerCase()),
           ).map(({ label, to, icon: Icon }) => (
             <CommandItem key={to} value={label} onSelect={() => handleSelectNav(to)}>
               <Icon className="shrink-0" />

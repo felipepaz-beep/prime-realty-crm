@@ -1,5 +1,5 @@
-import { supabase } from '@/integrations/supabase/client';
-import type { Activity } from '../types';
+import { supabase } from "@/integrations/supabase/client";
+import type { Activity } from "../types";
 
 export interface CalendarEventPayload {
   title: string;
@@ -21,30 +21,32 @@ export const CalendarService: CalendarServiceInterface = {
   async isConnected(): Promise<boolean> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await (supabase as any)
-      .from('profiles')
-      .select('google_calendar_connected')
+      .from("profiles")
+      .select("google_calendar_connected")
       .maybeSingle();
-    return (data as { google_calendar_connected?: boolean } | null)?.google_calendar_connected ?? false;
+    return (
+      (data as { google_calendar_connected?: boolean } | null)?.google_calendar_connected ?? false
+    );
   },
 
   async createEvent(payload: CalendarEventPayload): Promise<string> {
-    const { data, error } = await supabase.functions.invoke('google-calendar-sync', {
-      body: { action: 'create', payload },
+    const { data, error } = await supabase.functions.invoke("google-calendar-sync", {
+      body: { action: "create", payload },
     });
     if (error) throw error;
     return (data as { googleEventId: string }).googleEventId;
   },
 
   async updateEvent(externalId: string, payload: Partial<CalendarEventPayload>): Promise<void> {
-    const { error } = await supabase.functions.invoke('google-calendar-sync', {
-      body: { action: 'update', googleEventId: externalId, payload },
+    const { error } = await supabase.functions.invoke("google-calendar-sync", {
+      body: { action: "update", googleEventId: externalId, payload },
     });
     if (error) throw error;
   },
 
   async deleteEvent(externalId: string): Promise<void> {
-    const { error } = await supabase.functions.invoke('google-calendar-sync', {
-      body: { action: 'delete', googleEventId: externalId },
+    const { error } = await supabase.functions.invoke("google-calendar-sync", {
+      body: { action: "delete", googleEventId: externalId },
     });
     if (error) throw error;
   },

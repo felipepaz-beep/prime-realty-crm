@@ -1,8 +1,24 @@
-export type ConversationChannel = 'whatsapp' | 'instagram' | 'messenger' | 'telegram' | 'email' | 'sms' | 'internal';
-export type ConversationStatus = 'open' | 'closed' | 'waiting' | 'archived';
-export type MessageDirection = 'incoming' | 'outgoing';
-export type MessageType = 'text' | 'image' | 'pdf' | 'audio' | 'video' | 'location' | 'contact' | 'sticker' | 'system';
-export type MessageStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
+export type ConversationChannel =
+  | "whatsapp"
+  | "instagram"
+  | "messenger"
+  | "telegram"
+  | "email"
+  | "sms"
+  | "internal";
+export type ConversationStatus = "open" | "closed" | "waiting" | "archived";
+export type MessageDirection = "incoming" | "outgoing";
+export type MessageType =
+  | "text"
+  | "image"
+  | "pdf"
+  | "audio"
+  | "video"
+  | "location"
+  | "contact"
+  | "sticker"
+  | "system";
+export type MessageStatus = "pending" | "sent" | "delivered" | "read" | "failed";
 
 export interface ConversationMetadata {
   ai_summary?: string;
@@ -16,7 +32,7 @@ export interface ConversationMetadata {
 export interface MessageMetadata {
   provider_msg_id?: string;
   intent?: string;
-  sentiment?: 'positive' | 'neutral' | 'negative';
+  sentiment?: "positive" | "neutral" | "negative";
   entities?: string[];
   summary?: string;
   [key: string]: unknown;
@@ -44,7 +60,17 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
-  client?: { nome: string; telefone: string | null; whatsapp: string | null; email: string | null; etapa_funil: string; prioridade: string; proximo_followup: string | null; ultimo_contato: string | null; tags: string[]; } | null;
+  client?: {
+    nome: string;
+    telefone: string | null;
+    whatsapp: string | null;
+    email: string | null;
+    etapa_funil: string;
+    prioridade: string;
+    proximo_followup: string | null;
+    ultimo_contato: string | null;
+    tags: string[];
+  } | null;
 }
 
 export interface Message {
@@ -64,8 +90,10 @@ export interface Message {
   deleted_at: string | null;
 }
 
-export type ConversationInsert = Pick<Conversation, 'client_id' | 'channel'> & Partial<Pick<Conversation, 'subject' | 'metadata'>>;
-export type MessageInsert = Pick<Message, 'conversation_id' | 'direction' | 'type'> & Partial<Pick<Message, 'content' | 'attachment' | 'sender' | 'metadata'>>;
+export type ConversationInsert = Pick<Conversation, "client_id" | "channel"> &
+  Partial<Pick<Conversation, "subject" | "metadata">>;
+export type MessageInsert = Pick<Message, "conversation_id" | "direction" | "type"> &
+  Partial<Pick<Message, "content" | "attachment" | "sender" | "metadata">>;
 
 export interface ConversationFiltros {
   channel?: ConversationChannel;
@@ -87,47 +115,73 @@ export interface CommunicationProvider {
   sendText(to: string, text: string): Promise<string>;
   sendMedia(to: string, attachment: MessageAttachment): Promise<string>;
   isConnected(): Promise<boolean>;
-  getContactId(client: Conversation['client']): string | null;
+  getContactId(client: Conversation["client"]): string | null;
 }
 
 export class StubCommunicationProvider implements CommunicationProvider {
   channel: ConversationChannel;
-  constructor(channel: ConversationChannel) { this.channel = channel; }
-  async sendText(_to: string, _text: string): Promise<string> { console.info(`[${this.channel}] Stub — canal não conectado.`); return crypto.randomUUID(); }
-  async sendMedia(_to: string, _attachment: MessageAttachment): Promise<string> { console.info(`[${this.channel}] Stub — canal não conectado.`); return crypto.randomUUID(); }
-  async isConnected(): Promise<boolean> { return false; }
-  getContactId(client: Conversation['client']): string | null { return client?.whatsapp ?? client?.telefone ?? null; }
+  constructor(channel: ConversationChannel) {
+    this.channel = channel;
+  }
+  async sendText(_to: string, _text: string): Promise<string> {
+    console.info(`[${this.channel}] Stub — canal não conectado.`);
+    return crypto.randomUUID();
+  }
+  async sendMedia(_to: string, _attachment: MessageAttachment): Promise<string> {
+    console.info(`[${this.channel}] Stub — canal não conectado.`);
+    return crypto.randomUUID();
+  }
+  async isConnected(): Promise<boolean> {
+    return false;
+  }
+  getContactId(client: Conversation["client"]): string | null {
+    return client?.whatsapp ?? client?.telefone ?? null;
+  }
 }
 
 export const CHANNEL_PROVIDERS: Record<ConversationChannel, CommunicationProvider> = {
-  whatsapp: new StubCommunicationProvider('whatsapp'),
-  instagram: new StubCommunicationProvider('instagram'),
-  messenger: new StubCommunicationProvider('messenger'),
-  telegram: new StubCommunicationProvider('telegram'),
-  email: new StubCommunicationProvider('email'),
-  sms: new StubCommunicationProvider('sms'),
-  internal: new StubCommunicationProvider('internal'),
+  whatsapp: new StubCommunicationProvider("whatsapp"),
+  instagram: new StubCommunicationProvider("instagram"),
+  messenger: new StubCommunicationProvider("messenger"),
+  telegram: new StubCommunicationProvider("telegram"),
+  email: new StubCommunicationProvider("email"),
+  sms: new StubCommunicationProvider("sms"),
+  internal: new StubCommunicationProvider("internal"),
 };
 
 export const CHANNEL_LABELS: Record<ConversationChannel, string> = {
-  whatsapp: 'WhatsApp', instagram: 'Instagram', messenger: 'Messenger',
-  telegram: 'Telegram', email: 'E-mail', sms: 'SMS', internal: 'Interno',
+  whatsapp: "WhatsApp",
+  instagram: "Instagram",
+  messenger: "Messenger",
+  telegram: "Telegram",
+  email: "E-mail",
+  sms: "SMS",
+  internal: "Interno",
 };
 
 export const CHANNEL_COLORS: Record<ConversationChannel, string> = {
-  whatsapp:  'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  instagram: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400',
-  messenger: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  telegram:  'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
-  email:     'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400',
-  sms:       'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  internal:  'bg-muted text-muted-foreground',
+  whatsapp: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+  instagram: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400",
+  messenger: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  telegram: "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400",
+  email: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400",
+  sms: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+  internal: "bg-muted text-muted-foreground",
 };
 
 export const STATUS_LABELS: Record<ConversationStatus, string> = {
-  open: 'Aberta', closed: 'Encerrada', waiting: 'Aguardando', archived: 'Arquivada',
+  open: "Aberta",
+  closed: "Encerrada",
+  waiting: "Aguardando",
+  archived: "Arquivada",
 };
 
 export const CONVERSATION_CHANNELS: ConversationChannel[] = [
-  'whatsapp','instagram','messenger','telegram','email','sms','internal',
+  "whatsapp",
+  "instagram",
+  "messenger",
+  "telegram",
+  "email",
+  "sms",
+  "internal",
 ];

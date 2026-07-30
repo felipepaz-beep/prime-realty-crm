@@ -18,12 +18,9 @@ export async function gcalRefreshToken(refreshToken: string): Promise<string> {
     body: new URLSearchParams({
       grant_type: "refresh_token",
       refresh_token: refreshToken,
-      client_id:
-        Deno.env.get("GOOGLE_CLIENT_ID") ?? Deno.env.get("GOOGLE_OAUTH_CLIENT_ID") ?? "",
+      client_id: Deno.env.get("GOOGLE_CLIENT_ID") ?? Deno.env.get("GOOGLE_OAUTH_CLIENT_ID") ?? "",
       client_secret:
-        Deno.env.get("GOOGLE_CLIENT_SECRET") ??
-        Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET") ??
-        "",
+        Deno.env.get("GOOGLE_CLIENT_SECRET") ?? Deno.env.get("GOOGLE_OAUTH_CLIENT_SECRET") ?? "",
     }),
   });
   if (!res.ok) throw new Error(`Token refresh failed: ${await res.text()}`);
@@ -48,14 +45,11 @@ export async function gcalCreateEvent(
       overrides: [{ method: "popup", minutes: payload.reminderMinutes }],
     };
   }
-  const res = await fetch(
-    "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-    {
-      method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    },
-  );
+  const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
   if (!res.ok) throw new Error(`gcalCreate failed: ${await res.text()}`);
   const json = await res.json();
   return json.id as string;

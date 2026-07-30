@@ -1,10 +1,10 @@
-import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
   FormControl,
@@ -12,22 +12,18 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form';
+} from "@/components/ui/form";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 
-import { useClientes } from '@/features/clientes/hooks/use-clientes';
-import { commissionSchema, type CommissionFormValues } from '../schemas';
-import {
-  COMMISSION_STATUS_LABELS,
-  PAYMENT_METHOD_LABELS,
-  type Commission,
-} from '../types';
+import { useClientes } from "@/features/clientes/hooks/use-clientes";
+import { commissionSchema, type CommissionFormValues } from "../schemas";
+import { COMMISSION_STATUS_LABELS, PAYMENT_METHOD_LABELS, type Commission } from "../types";
 
 type Props = {
   onSubmit: (values: CommissionFormValues) => Promise<void> | void;
@@ -37,31 +33,31 @@ type Props = {
 };
 
 export function CommissionForm({ onSubmit, onCancel, isLoading, defaultValues }: Props) {
-  const { data: clientesData } = useClientes({ porPagina: 200, ordenarPor: 'nome', ordem: 'asc' });
+  const { data: clientesData } = useClientes({ porPagina: 200, ordenarPor: "nome", ordem: "asc" });
   const clientes = clientesData?.data ?? [];
 
   const form = useForm<CommissionFormValues>({
     resolver: zodResolver(commissionSchema),
     defaultValues: {
       client_id: defaultValues?.client_id ?? null,
-      property_code: defaultValues?.property_code ?? '',
+      property_code: defaultValues?.property_code ?? "",
       gross_value: Number(defaultValues?.gross_value ?? 0),
       commission_percentage: Number(defaultValues?.commission_percentage ?? 0),
       commission_value: Number(defaultValues?.commission_value ?? 0),
-      status: defaultValues?.status ?? 'prevista',
-      expected_date: defaultValues?.expected_date ?? '',
-      received_date: defaultValues?.received_date ?? '',
+      status: defaultValues?.status ?? "prevista",
+      expected_date: defaultValues?.expected_date ?? "",
+      received_date: defaultValues?.received_date ?? "",
       payment_method: defaultValues?.payment_method ?? null,
-      notes: defaultValues?.notes ?? '',
+      notes: defaultValues?.notes ?? "",
     },
   });
 
   // Cálculo automático da comissão a partir de bruto × percentual
-  const bruto = form.watch('gross_value');
-  const perc = form.watch('commission_percentage');
+  const bruto = form.watch("gross_value");
+  const perc = form.watch("commission_percentage");
   useEffect(() => {
     const calc = Number(((Number(bruto) || 0) * (Number(perc) || 0)) / 100);
-    form.setValue('commission_value', Number(calc.toFixed(2)), { shouldValidate: false });
+    form.setValue("commission_value", Number(calc.toFixed(2)), { shouldValidate: false });
   }, [bruto, perc, form]);
 
   return (
@@ -74,8 +70,8 @@ export function CommissionForm({ onSubmit, onCancel, isLoading, defaultValues }:
             <FormItem>
               <FormLabel>Cliente</FormLabel>
               <Select
-                value={field.value ?? '__none__'}
-                onValueChange={(v) => field.onChange(v === '__none__' ? null : v)}
+                value={field.value ?? "__none__"}
+                onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
               >
                 <FormControl>
                   <SelectTrigger>
@@ -104,7 +100,7 @@ export function CommissionForm({ onSubmit, onCancel, isLoading, defaultValues }:
               <FormItem>
                 <FormLabel>Código do imóvel</FormLabel>
                 <FormControl>
-                  <Input placeholder="Ex: AP-1234" {...field} value={field.value ?? ''} />
+                  <Input placeholder="Ex: AP-1234" {...field} value={field.value ?? ""} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -186,7 +182,7 @@ export function CommissionForm({ onSubmit, onCancel, isLoading, defaultValues }:
               <FormItem>
                 <FormLabel>Data prevista</FormLabel>
                 <FormControl>
-                  <Input type="date" {...field} value={field.value ?? ''} />
+                  <Input type="date" {...field} value={field.value ?? ""} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -199,7 +195,7 @@ export function CommissionForm({ onSubmit, onCancel, isLoading, defaultValues }:
               <FormItem>
                 <FormLabel>Data de recebimento</FormLabel>
                 <FormControl>
-                  <Input type="date" {...field} value={field.value ?? ''} />
+                  <Input type="date" {...field} value={field.value ?? ""} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -213,10 +209,7 @@ export function CommissionForm({ onSubmit, onCancel, isLoading, defaultValues }:
           render={({ field }) => (
             <FormItem>
               <FormLabel>Forma de pagamento</FormLabel>
-              <Select
-                value={field.value ?? ''}
-                onValueChange={(v) => field.onChange(v || null)}
-              >
+              <Select value={field.value ?? ""} onValueChange={(v) => field.onChange(v || null)}>
                 <FormControl>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione" />
@@ -242,7 +235,7 @@ export function CommissionForm({ onSubmit, onCancel, isLoading, defaultValues }:
             <FormItem>
               <FormLabel>Observações</FormLabel>
               <FormControl>
-                <Textarea rows={3} {...field} value={field.value ?? ''} />
+                <Textarea rows={3} {...field} value={field.value ?? ""} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -254,7 +247,7 @@ export function CommissionForm({ onSubmit, onCancel, isLoading, defaultValues }:
             Cancelar
           </Button>
           <Button type="submit" disabled={isLoading}>
-            {isLoading ? 'Salvando...' : 'Salvar'}
+            {isLoading ? "Salvando..." : "Salvar"}
           </Button>
         </div>
       </form>

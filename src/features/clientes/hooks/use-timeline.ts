@@ -1,9 +1,9 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
-import { buscarEventosCliente } from '../services/timeline.service';
-import type { TimelineFiltros } from '../timeline.types';
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { buscarEventosCliente } from "../services/timeline.service";
+import type { TimelineFiltros } from "../timeline.types";
 
 export const timelineKeys = {
-  all: ['timeline'] as const,
+  all: ["timeline"] as const,
   cliente: (clientId: string, filtros?: TimelineFiltros) =>
     [...timelineKeys.all, clientId, filtros ?? {}] as const,
 };

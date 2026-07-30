@@ -55,7 +55,10 @@ export interface TimelineEvento {
   total: number;
 }
 
-export interface DateRange { start: string; end: string; }
+export interface DateRange {
+  start: string;
+  end: string;
+}
 
 export interface ReportFiltros {
   dateRange?: DateRange;
@@ -65,14 +68,14 @@ export interface ReportFiltros {
 }
 
 export const RELATORIO_TYPES = [
-  { id: 'executivo',    label: 'Resumo Executivo',   icon: 'LayoutDashboard' },
-  { id: 'funil',        label: 'Funil de Vendas',    icon: 'TrendingUp' },
-  { id: 'clientes',     label: 'Clientes',           icon: 'Users' },
-  { id: 'origem',       label: 'Origem dos Leads',   icon: 'Target' },
-  { id: 'atividades',   label: 'Agenda e Atividades',icon: 'Calendar' },
-  { id: 'documentos',   label: 'Documentos',         icon: 'FileText' },
-  { id: 'comunicacao',  label: 'Comunicação',        icon: 'MessageCircle' },
-  { id: 'ia',           label: 'Uso da IA',          icon: 'Sparkles' },
+  { id: "executivo", label: "Resumo Executivo", icon: "LayoutDashboard" },
+  { id: "funil", label: "Funil de Vendas", icon: "TrendingUp" },
+  { id: "clientes", label: "Clientes", icon: "Users" },
+  { id: "origem", label: "Origem dos Leads", icon: "Target" },
+  { id: "atividades", label: "Agenda e Atividades", icon: "Calendar" },
+  { id: "documentos", label: "Documentos", icon: "FileText" },
+  { id: "comunicacao", label: "Comunicação", icon: "MessageCircle" },
+  { id: "ia", label: "Uso da IA", icon: "Sparkles" },
 ] as const;
 
-export type RelatorioType = typeof RELATORIO_TYPES[number]['id'];
+export type RelatorioType = (typeof RELATORIO_TYPES)[number]["id"];

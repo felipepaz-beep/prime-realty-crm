@@ -9,10 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/_authenticated/inicio")({
   head: () => ({
-    meta: [
-      { title: "Início — Corretor CRM" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: "Início — Corretor CRM" }, { name: "robots", content: "noindex" }],
   }),
   component: InicioPage,
 });
@@ -52,8 +49,8 @@ function InicioPage() {
           </h1>
         )}
         <p className="text-muted-foreground">
-          A fundação do sistema está pronta. Os módulos de negócio serão
-          liberados nas próximas etapas.
+          A fundação do sistema está pronta. Os módulos de negócio serão liberados nas próximas
+          etapas.
         </p>
       </div>
 
@@ -64,8 +61,7 @@ function InicioPage() {
             Complete seu perfil
           </CardTitle>
           <CardDescription>
-            Preencha seus dados profissionais para acelerar o uso das próximas
-            funcionalidades.
+            Preencha seus dados profissionais para acelerar o uso das próximas funcionalidades.
           </CardDescription>
         </CardHeader>
         <CardContent>

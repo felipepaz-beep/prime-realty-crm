@@ -1,6 +1,13 @@
-export type ActivityType = 'TASK' | 'FOLLOWUP' | 'VISIT' | 'CALL' | 'MEETING' | 'EMAIL' | 'PERSONAL';
-export type ActivityStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
-export type ActivityPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+export type ActivityType =
+  | "TASK"
+  | "FOLLOWUP"
+  | "VISIT"
+  | "CALL"
+  | "MEETING"
+  | "EMAIL"
+  | "PERSONAL";
+export type ActivityStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+export type ActivityPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 
 export interface ActivityMetadata {
   google_calendar_event_id?: string;
@@ -11,7 +18,7 @@ export interface ActivityMetadata {
 }
 
 export interface ActivityRecurrence {
-  freq: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  freq: "DAILY" | "WEEKLY" | "MONTHLY";
   interval: number;
   until?: string;
   count?: number;
@@ -40,8 +47,13 @@ export interface Activity {
   client?: { nome: string } | null;
 }
 
-export type ActivityInsert = Pick<Activity, 'type' | 'title'> &
-  Partial<Omit<Activity, 'id' | 'owner_id' | 'created_at' | 'updated_at' | 'deleted_at' | 'type' | 'title' | 'client'>>;
+export type ActivityInsert = Pick<Activity, "type" | "title"> &
+  Partial<
+    Omit<
+      Activity,
+      "id" | "owner_id" | "created_at" | "updated_at" | "deleted_at" | "type" | "title" | "client"
+    >
+  >;
 
 export type ActivityUpdate = Partial<ActivityInsert>;
 
@@ -53,8 +65,8 @@ export interface ActivityFiltros {
   dateStart?: string;
   dateEnd?: string;
   busca?: string;
-  ordenarPor?: 'scheduled_at' | 'due_at' | 'created_at' | 'priority';
-  ordem?: 'asc' | 'desc';
+  ordenarPor?: "scheduled_at" | "due_at" | "created_at" | "priority";
+  ordem?: "asc" | "desc";
   pagina?: number;
   porPagina?: number;
 }

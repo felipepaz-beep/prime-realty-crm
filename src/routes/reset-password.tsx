@@ -15,10 +15,7 @@ import { translateAuthError } from "@/features/auth/error-messages";
 
 export const Route = createFileRoute("/reset-password")({
   head: () => ({
-    meta: [
-      { title: "Redefinir senha — Corretor CRM" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: "Redefinir senha — Corretor CRM" }, { name: "robots", content: "noindex" }],
   }),
   component: ResetPasswordPage,
 });

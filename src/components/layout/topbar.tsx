@@ -62,19 +62,19 @@ export function Topbar() {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setSearchOpen((o) => !o);
       }
     };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
   }, []);
 
   useEffect(() => {
     const handler = () => setSearchOpen(true);
-    window.addEventListener('prime-crm:open-search', handler);
-    return () => window.removeEventListener('prime-crm:open-search', handler);
+    window.addEventListener("prime-crm:open-search", handler);
+    return () => window.removeEventListener("prime-crm:open-search", handler);
   }, []);
 
   const name = profile?.display_name || profile?.full_name || profile?.email || "Corretor";
@@ -158,7 +158,10 @@ export function Topbar() {
               <UserIcon className="mr-2 h-4 w-4" /> Meu perfil
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
+            <DropdownMenuItem
+              onClick={handleSignOut}
+              className="text-destructive focus:text-destructive"
+            >
               <LogOut className="mr-2 h-4 w-4" /> Sair
             </DropdownMenuItem>
           </DropdownMenuContent>

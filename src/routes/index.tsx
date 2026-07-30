@@ -22,10 +22,26 @@ export const Route = createFileRoute("/")({
 });
 
 const foundations = [
-  { icon: Layers, title: "Arquitetura modular", description: "Clean Architecture e camadas isoladas, prontas para escalar." },
-  { icon: Palette, title: "Design System", description: "Tokens semânticos, tema claro/escuro e componentes reutilizáveis." },
-  { icon: Shield, title: "Segurança nativa", description: "Autenticação, RLS e políticas de acesso configuradas." },
-  { icon: Sparkles, title: "Pronto para crescer", description: "Módulos, hooks e integrações separados por responsabilidade." },
+  {
+    icon: Layers,
+    title: "Arquitetura modular",
+    description: "Clean Architecture e camadas isoladas, prontas para escalar.",
+  },
+  {
+    icon: Palette,
+    title: "Design System",
+    description: "Tokens semânticos, tema claro/escuro e componentes reutilizáveis.",
+  },
+  {
+    icon: Shield,
+    title: "Segurança nativa",
+    description: "Autenticação, RLS e políticas de acesso configuradas.",
+  },
+  {
+    icon: Sparkles,
+    title: "Pronto para crescer",
+    description: "Módulos, hooks e integrações separados por responsabilidade.",
+  },
 ];
 
 function Landing() {
@@ -75,9 +91,8 @@ function Landing() {
             O CRM premium para o corretor autônomo.
           </h1>
           <p className="max-w-2xl text-muted-foreground text-lg leading-relaxed">
-            Centralize seus clientes, agenda, pipeline e finanças em um sistema
-            moderno, rápido e feito para escalar com você — sem equipe, sem
-            multiempresa, sem complicação.
+            Centralize seus clientes, agenda, pipeline e finanças em um sistema moderno, rápido e
+            feito para escalar com você — sem equipe, sem multiempresa, sem complicação.
           </p>
           <div className="flex gap-2 mt-2">
             <Button size="lg" asChild>
@@ -92,7 +107,10 @@ function Landing() {
           {foundations.map((item) => {
             const Icon = item.icon;
             return (
-              <Card key={item.title} className="border-border/60 hover:border-border transition-colors">
+              <Card
+                key={item.title}
+                className="border-border/60 hover:border-border transition-colors"
+              >
                 <CardHeader className="flex flex-row items-center gap-3 space-y-0">
                   <div className="h-9 w-9 rounded-md bg-primary/10 grid place-items-center">
                     <Icon className="h-4 w-4 text-primary" />

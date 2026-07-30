@@ -58,13 +58,11 @@ function AuthPage() {
             Gestão premium para corretores autônomos
           </h2>
           <p className="text-muted-foreground leading-relaxed">
-            Centralize clientes, agenda, negociações e finanças em um único
-            ambiente moderno, rápido e feito sob medida para você.
+            Centralize clientes, agenda, negociações e finanças em um único ambiente moderno, rápido
+            e feito sob medida para você.
           </p>
         </div>
-        <p className="text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Corretor CRM
-        </p>
+        <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} Corretor CRM</p>
       </div>
 
       <div className="flex items-center justify-center p-6 lg:p-10">
@@ -255,8 +253,7 @@ function ForgotForm({ onBack }: { onBack: () => void }) {
       <div className="space-y-4">
         <Alert>
           <AlertDescription>
-            Enviamos um link de recuperação para o seu e-mail. Verifique também
-            a caixa de spam.
+            Enviamos um link de recuperação para o seu e-mail. Verifique também a caixa de spam.
           </AlertDescription>
         </Alert>
         <Button variant="outline" className="w-full" onClick={onBack}>

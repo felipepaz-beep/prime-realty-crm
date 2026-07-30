@@ -12,15 +12,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/_authenticated/perfil")({
   head: () => ({
-    meta: [
-      { title: "Perfil — Corretor CRM" },
-      { name: "robots", content: "noindex" },
-    ],
+    meta: [{ title: "Perfil — Corretor CRM" }, { name: "robots", content: "noindex" }],
   }),
   component: PerfilPage,
 });
@@ -114,10 +117,7 @@ function PerfilPage() {
     const payload = Object.fromEntries(
       Object.entries(values).map(([k, v]) => [k, v === "" ? null : v]),
     ) as Partial<ProfileForm>;
-    const { error } = await supabase
-      .from("profiles")
-      .update(payload)
-      .eq("id", u.user.id);
+    const { error } = await supabase.from("profiles").update(payload).eq("id", u.user.id);
     setSaving(false);
     if (error) {
       toast.error("Erro ao salvar: " + error.message);
@@ -199,7 +199,9 @@ function PerfilPage() {
                 value={form.watch("locale")}
                 onValueChange={(v) => form.setValue("locale", v)}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
                   <SelectItem value="en-US">English (US)</SelectItem>
@@ -212,7 +214,9 @@ function PerfilPage() {
                 value={form.watch("timezone")}
                 onValueChange={(v) => form.setValue("timezone", v)}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="America/Sao_Paulo">São Paulo (GMT-3)</SelectItem>
                   <SelectItem value="America/Manaus">Manaus (GMT-4)</SelectItem>
@@ -226,7 +230,9 @@ function PerfilPage() {
                 value={form.watch("theme")}
                 onValueChange={(v) => form.setValue("theme", v as "light" | "dark" | "system")}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="light">Claro</SelectItem>
                   <SelectItem value="dark">Escuro</SelectItem>
@@ -239,7 +245,9 @@ function PerfilPage() {
                 value={form.watch("date_format")}
                 onValueChange={(v) => form.setValue("date_format", v)}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="dd/MM/yyyy">31/12/2026</SelectItem>
                   <SelectItem value="MM/dd/yyyy">12/31/2026</SelectItem>
@@ -252,7 +260,9 @@ function PerfilPage() {
                 value={form.watch("currency_format")}
                 onValueChange={(v) => form.setValue("currency_format", v)}
               >
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="BRL">Real (BRL)</SelectItem>
                   <SelectItem value="USD">Dólar (USD)</SelectItem>

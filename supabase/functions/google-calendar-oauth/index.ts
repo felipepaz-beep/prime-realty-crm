@@ -71,7 +71,10 @@ Deno.serve(async (req) => {
 
       const tokens = await tokenRes.json();
       const refreshToken = tokens.refresh_token as string | undefined;
-      if (!refreshToken) throw new Error("No refresh_token returned — ensure prompt=consent and access_type=offline");
+      if (!refreshToken)
+        throw new Error(
+          "No refresh_token returned — ensure prompt=consent and access_type=offline",
+        );
 
       const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -87,10 +90,12 @@ Deno.serve(async (req) => {
       await admin.from("profiles").update({ google_calendar_connected: true }).eq("id", userId);
 
       // Register in integrations table so the UI shows "Conectado"
-      await admin.from("integrations").upsert(
-        { owner_id: userId, provider: "google_calendar", status: "connected", configuration: {} },
-        { onConflict: "owner_id,provider" },
-      );
+      await admin
+        .from("integrations")
+        .upsert(
+          { owner_id: userId, provider: "google_calendar", status: "connected", configuration: {} },
+          { onConflict: "owner_id,provider" },
+        );
 
       return Response.redirect(`${APP_URL}/configuracoes?google_calendar=success`, 302);
     } catch (err) {
