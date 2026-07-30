@@ -27,15 +27,15 @@ function applyThemeClass(resolved: "light" | "dark") {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("system");
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
+  const [theme, setThemeState] = useState<Theme>("dark");
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
 
   // Read from localStorage after mount to avoid SSR hydration mismatch.
   useEffect(() => {
-    const stored = (
-      typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null
-    ) as Theme | null;
-    const initial: Theme = stored ?? "system";
+    const stored = (typeof window !== "undefined"
+      ? window.localStorage.getItem(STORAGE_KEY)
+      : null) as Theme | null;
+    const initial: Theme = stored ?? "dark";
     setThemeState(initial);
     const resolved = initial === "system" ? getSystemTheme() : initial;
     setResolvedTheme(resolved);

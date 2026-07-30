@@ -1,4 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import logoMark from "@/assets/logo-felipe-paz-mark.svg";
 import {
   LayoutDashboard,
   Users,
@@ -108,13 +109,15 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r">
       <SidebarHeader className="border-b h-14 flex items-center px-3">
         <Link to="/inicio" className="flex items-center gap-2 font-semibold">
-          <div className="h-7 w-7 rounded-md bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-primary-foreground text-xs font-bold">
-            C
-          </div>
+          <img
+            src={logoMark}
+            alt="Felipe Paz"
+            className="h-7 w-7 rounded-md shrink-0 object-cover"
+          />
           {!collapsed && (
             <div className="flex flex-col leading-tight">
-              <span className="text-sm">Corretor CRM</span>
-              <span className="text-[10px] text-muted-foreground">Premium</span>
+              <span className="text-sm">Felipe Paz</span>
+              <span className="text-[10px] text-muted-foreground">Corretor de imóveis</span>
             </div>
           )}
         </Link>
