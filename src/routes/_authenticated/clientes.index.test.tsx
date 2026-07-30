@@ -51,6 +51,7 @@ const mockClientes: Cliente[] = [
     previsao_fechamento: null,
     tags: [],
     custom_fields: {},
+    followup_intervalo_dias: 4,
   },
   {
     id: "cli-2",
@@ -89,6 +90,7 @@ const mockClientes: Cliente[] = [
     previsao_fechamento: null,
     tags: [],
     custom_fields: {},
+    followup_intervalo_dias: 4,
   },
 ];
 
