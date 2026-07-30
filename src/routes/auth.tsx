@@ -48,12 +48,11 @@ function AuthPage() {
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">
       <div className="hidden lg:flex flex-col justify-between bg-muted/30 p-10 border-r">
         <div className="flex items-center gap-2 text-foreground font-semibold">
-          <div className="h-8 w-8 rounded-lg bg-primary/10 grid place-items-center">
-            <Building2 className="h-4 w-4 text-primary" />
-          </div>
-          Corretor CRM
+          <img src={logoMark} alt="Felipe Paz" className="h-8 w-8 rounded-lg object-cover" />
+          Felipe Paz
         </div>
         <div className="max-w-md space-y-4">
+          <img src={logoFull} alt="Felipe Paz — Corretor de imóveis" className="w-56 rounded-xl" />
           <h2 className="text-2xl font-semibold tracking-tight">
             Gestão premium para corretores autônomos
           </h2>
@@ -63,17 +62,15 @@ function AuthPage() {
           </p>
         </div>
         <p className="text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Corretor CRM
+          © {new Date().getFullYear()} Felipe Paz — Corretor de imóveis
         </p>
       </div>
 
       <div className="flex items-center justify-center p-6 lg:p-10">
         <div className="w-full max-w-md">
           <div className="mb-6 lg:hidden flex items-center gap-2 text-foreground font-semibold">
-            <div className="h-8 w-8 rounded-lg bg-primary/10 grid place-items-center">
-              <Building2 className="h-4 w-4 text-primary" />
-            </div>
-            Corretor CRM
+            <img src={logoMark} alt="Felipe Paz" className="h-8 w-8 rounded-lg object-cover" />
+            Felipe Paz
           </div>
 
           <Card className="border-border/60">
