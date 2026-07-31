@@ -29,6 +29,17 @@ import {
 } from "../constants";
 import type { Activity } from "../types";
 
+function toLocalInput(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function localInputToISO(value: string | undefined | null): string | undefined | null {
+  if (!value) return value;
+  return new Date(value).toISOString();
+}
+
 interface ActivityFormProps {
   defaultValues?: Partial<Activity>;
   clienteId?: string;
@@ -53,24 +64,27 @@ export function ActivityForm({
       status: defaultValues?.status ?? "PENDING",
       priority: defaultValues?.priority ?? "MEDIUM",
       client_id: clienteId ?? defaultValues?.client_id ?? "",
-      scheduled_at: defaultValues?.scheduled_at
-        ? new Date(defaultValues.scheduled_at).toISOString().slice(0, 16)
-        : "",
-      due_at: defaultValues?.due_at
-        ? new Date(defaultValues.due_at).toISOString().slice(0, 16)
-        : "",
-      reminder_at: defaultValues?.reminder_at
-        ? new Date(defaultValues.reminder_at).toISOString().slice(0, 16)
-        : "",
+      scheduled_at: defaultValues?.scheduled_at ? toLocalInput(defaultValues.scheduled_at) : "",
+      due_at: defaultValues?.due_at ? toLocalInput(defaultValues.due_at) : "",
+      reminder_at: defaultValues?.reminder_at ? toLocalInput(defaultValues.reminder_at) : "",
       duration_minutes: defaultValues?.duration_minutes ?? undefined,
       location: defaultValues?.location ?? "",
       metadata: defaultValues?.metadata ?? {},
     } as ActivityFormValues,
   });
 
+  const handleSubmit = async (values: ActivityFormValues) => {
+    await onSubmit({
+      ...values,
+      scheduled_at: localInputToISO(values.scheduled_at) ?? undefined,
+      due_at: localInputToISO(values.due_at) ?? undefined,
+      reminder_at: localInputToISO(values.reminder_at) ?? undefined,
+    });
+  };
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
         <div className="space-y-1">
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Atividade
